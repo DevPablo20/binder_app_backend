@@ -8,8 +8,8 @@ export const ormConfig: DataSourceOptions = {
   password: process.env.DB_PASSWORD,
   database: process.env.DB_DATABASE,
   synchronize: false,
-  entities: ['dist/modules/**/*.entity.js'],
-  migrations: ['dist/modules/database/migrations/*.js'],
+  entities: ['dist/**/*.entity.js'],
+  migrations: ['dist/database/migrations/*.js'],
 }
 
 const dataSource = new DataSource(ormConfig)

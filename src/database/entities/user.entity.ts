@@ -4,7 +4,6 @@ import {
     PrimaryGeneratedColumn,
     CreateDateColumn,
     UpdateDateColumn,
-    DeleteDateColumn,
 } from 'typeorm';
 import { Role } from 'src/auth/roles/roles.enum';
 
@@ -24,6 +23,9 @@ export class User {
 
     @Column({ name: 'role', type: 'enum', enum: Role })
     role: Role;
+
+    @Column({ name: 'is_active', type: 'boolean', default: true })
+    isActive: boolean;
 
     @Column({ name: 'password_reset_token', type: 'character varying', length: 255, nullable: true })
     passwordResetToken?: string | null;
