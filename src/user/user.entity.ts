@@ -1,0 +1,39 @@
+import {
+    Entity,
+    Column,
+    PrimaryGeneratedColumn,
+    CreateDateColumn,
+    UpdateDateColumn,
+    DeleteDateColumn,
+} from 'typeorm';
+import { Role } from 'src/auth/roles/roles.enum';
+
+@Entity()
+export class User {
+    @PrimaryGeneratedColumn('uuid', { name: 'id' })
+    id: string;
+
+    @Column({ name: 'name', type: 'character varying', length: 255 })
+    name: string;
+
+    @Column({ name: 'email', type: 'character varying', length: 255, unique: true })
+    email: string;
+
+    @Column({ name: 'password', type: 'character varying', length: 255, select: false })
+    password: string;
+
+    @Column({ name: 'role', type: 'enum', enum: Role })
+    role: Role;
+
+    @Column({ name: 'password_reset_token', type: 'character varying', length: 255, nullable: true })
+    passwordResetToken?: string | null;
+
+    @Column({ name: 'password_reset_expires', type: 'timestamp with time zone', nullable: true })
+    passwordResetExpires?: Date | null;
+
+    @CreateDateColumn({ name: 'created_at', type: 'timestamp with time zone' })
+    createdAt: Date;
+
+    @UpdateDateColumn({ name: 'updated_at', type: 'timestamp with time zone' })
+    updatedAt: Date;
+}
