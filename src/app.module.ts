@@ -5,7 +5,11 @@ import { DatabaseModule } from './database/database.module';
 import { UserModule } from './user/user.module';
 
 @Module({
-  imports: [AuthModule, DatabaseModule, UserModule, ConfigModule.forRoot({
+  imports: [
+    AuthModule,
+    DatabaseModule,
+    UserModule,
+    ConfigModule.forRoot({
     isGlobal: true,
     envFilePath: [`./.env.${process.env.NODE_ENV}`]
   })],
