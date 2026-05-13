@@ -1,7 +1,7 @@
 import 'reflect-metadata';
 import { hash } from 'bcrypt';
 import dataSource from '../typeormFile';
-import { User } from '../entities/user.entity';
+import { User } from '../../user/user.entity';
 import { Role } from '../../auth/roles/roles.enum';
 
 async function run() {

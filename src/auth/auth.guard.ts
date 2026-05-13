@@ -8,7 +8,7 @@ import { IS_PUBLIC_KEY } from './decorators/public.decorator';
 import { IS_PRIVATE_KEY } from './decorators/private.decorator';
 import { Role } from './roles/roles.enum';
 import { ConfigService } from '@nestjs/config';
-import { User } from 'src/database/entities/user.entity';
+import { User } from 'src/user/user.entity';
 import { UserSignature } from './userSignature.type';
 
 @Injectable()
@@ -49,7 +49,8 @@ export class AuthGuard implements CanActivate {
       )
 
       const user = await this.dataSource.manager.findOne(User, {
-        where: { id: payload.id }
+        where: { id: payload.id },
+        relations: { companies: true }
       })
 
       if (!user) throw new HttpException('Usuário não autenticado', HttpStatus.UNAUTHORIZED)
@@ -59,6 +60,7 @@ export class AuthGuard implements CanActivate {
         id: user.id,
         name: user.name,
         role: user.role,
+        companyIds: user.companies?.map((company) => company.id) ?? [],
       }
 
       request['userSignature'] = userSignature

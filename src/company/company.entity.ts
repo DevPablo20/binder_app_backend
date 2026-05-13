@@ -1,12 +1,17 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, OneToMany, Unique, DeleteDateColumn, ManyToMany, JoinTable } from 'typeorm'
+import { Campaign } from 'src/campaign/campaign.entity';
+import { User } from 'src/user/user.entity';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, ManyToMany, OneToMany } from 'typeorm'
 
 @Entity()
-export class Campaign {
+export class Company {
     @PrimaryGeneratedColumn('uuid', { name: 'id' })
     id: string;
 
     @Column({ name: 'name', type: 'character varying', unique: true })
     name: string;
+
+    @Column({ name: 'short_id', type: 'character varying', unique: true })
+    shortId: string;
 
     @Column({ name: 'status', type: 'boolean', default: true })
     status: boolean;
@@ -19,4 +24,10 @@ export class Campaign {
 
     @UpdateDateColumn({ name: 'updated_at', type: 'timestamp with time zone' })
     updatedAt: Date;
+
+    @ManyToMany(() => User, (user) => user.companies)
+    users: User[];
+
+    @OneToMany(() => Campaign, (campaign) => campaign.company)
+    campaigns: Campaign[];
 }

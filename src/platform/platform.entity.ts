@@ -19,8 +19,11 @@ export class Platform {
     @PrimaryGeneratedColumn('uuid', { name: 'id' })
     id: string;
 
-    @Column({ name: 'name', type: 'character varying' })
-    name: string;
+    @Column({ name: 'display_name', type: 'character varying' })
+    displayName: string;
+
+    @Column({ name: 'utm_source', type: 'character varying', unique: true })
+    utmSource: string;
 
     @Column({ name: 'platform_type', type: 'enum', enum: PlatformType })
     platformType: PlatformType;

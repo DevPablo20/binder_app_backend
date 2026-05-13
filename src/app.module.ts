@@ -3,6 +3,8 @@ import { AuthModule } from './auth/auth.module';
 import { ConfigModule } from '@nestjs/config';
 import { DatabaseModule } from './database/database.module';
 import { UserModule } from './user/user.module';
+import { CompanyModule } from './company/company.module';
+import { CampaignModule } from './campaign/campaign.module';
 
 @Module({
   imports: [
@@ -12,7 +14,10 @@ import { UserModule } from './user/user.module';
     ConfigModule.forRoot({
     isGlobal: true,
     envFilePath: [`./.env.${process.env.NODE_ENV}`]
-  })],
+  }),
+    CompanyModule,
+    CampaignModule,
+  ],
   controllers: [],
   providers: [],
 })

@@ -2,7 +2,7 @@ import { Inject, Injectable, HttpException, HttpStatus, Logger } from '@nestjs/c
 import { DATA_SOURCE, USER_REPOSITORY } from '../database/constants';
 import { DataSource, MoreThan, Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
-import { User } from 'src/database/entities/user.entity';
+import { User } from 'src/user/user.entity';
 import { compare, hash } from 'bcrypt';
 import { ForgottenPasswordDTO, LoginDTO, ResetPasswordDTO } from './auth.dto';
 import { Response } from 'express';
@@ -121,6 +121,9 @@ export class AuthService {
             },
             where: {
                 email
+            },
+            relations: {
+                companies: true
             }
         })
     }

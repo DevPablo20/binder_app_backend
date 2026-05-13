@@ -4,8 +4,11 @@ import {
     PrimaryGeneratedColumn,
     CreateDateColumn,
     UpdateDateColumn,
+    ManyToMany,
+    JoinTable,
 } from 'typeorm';
 import { Role } from 'src/auth/roles/roles.enum';
+import { Company } from 'src/company/company.entity';
 
 @Entity()
 export class User {
@@ -38,4 +41,12 @@ export class User {
 
     @UpdateDateColumn({ name: 'updated_at', type: 'timestamp with time zone' })
     updatedAt: Date;
+
+    @ManyToMany(() => Company, (company) => company.users)
+    @JoinTable({
+        name: 'user_company',
+        joinColumn: { name: 'user_id', referencedColumnName: 'id' },
+        inverseJoinColumn: { name: 'company_id', referencedColumnName: 'id' },
+    })
+    companies: Company[];
 }
