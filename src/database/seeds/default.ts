@@ -2,13 +2,19 @@ import 'reflect-metadata';
 import { hash } from 'bcrypt';
 import dataSource from '../typeormFile';
 import { User } from '../../user/user.entity';
+import { Company } from '../../company/company.entity';
 import { Role } from '../../auth/roles/roles.enum';
+
+const SEED_COMPANY_NAME = 'Binder-DF';
+const SEED_COMPANY_SHORT_ID = 'binder-df';
+const SEED_COMPANY_DESCRIPTION = 'Unidade Binder Brasília-DF';
 
 async function run() {
   await dataSource.initialize();
 
   try {
     const userRepository = dataSource.getRepository(User);
+    const companyRepository = dataSource.getRepository(Company);
 
     const email = process.env.SEED_USER_EMAIL ?? 'admin@admin.com';
     const plainPassword = process.env.SEED_USER_PASSWORD ?? 'Admin@123';
@@ -16,17 +22,17 @@ async function run() {
 
     const password = await hash(plainPassword, 10);
 
-    const existingUser = await userRepository.findOne({ where: { email } });
+    let user = await userRepository.findOne({ where: { email } });
 
-    if (existingUser) {
-      existingUser.name = name;
-      existingUser.password = password;
-      existingUser.role = Role.Superadmin;
-      existingUser.isActive = true;
-      await userRepository.save(existingUser);
+    if (user) {
+      user.name = name;
+      user.password = password;
+      user.role = Role.Superadmin;
+      user.isActive = true;
+      await userRepository.save(user);
       console.log(`[seed] Usuario atualizado: ${email}`);
     } else {
-      const user = userRepository.create({
+      user = userRepository.create({
         name,
         email,
         password,
@@ -35,6 +41,40 @@ async function run() {
       });
       await userRepository.save(user);
       console.log(`[seed] Usuario criado: ${email}`);
+    }
+
+    user = await userRepository.findOneOrFail({
+      where: { email },
+      relations: { companies: true },
+    });
+
+    let company = await companyRepository.findOne({
+      where: { name: SEED_COMPANY_NAME },
+    });
+
+    if (!company) {
+      company = companyRepository.create({
+        name: SEED_COMPANY_NAME,
+        shortId: SEED_COMPANY_SHORT_ID,
+        status: true,
+        description: SEED_COMPANY_DESCRIPTION,
+      });
+      await companyRepository.save(company);
+      console.log(`[seed] Empresa criada: ${SEED_COMPANY_NAME}`);
+    } else {
+      company.shortId = SEED_COMPANY_SHORT_ID;
+      company.status = true;
+      company.description = SEED_COMPANY_DESCRIPTION;
+      await companyRepository.save(company);
+      console.log(`[seed] Empresa ja existia, dados sincronizados: ${SEED_COMPANY_NAME}`);
+    }
+
+    if (!user.companies.some((c) => c.id === company.id)) {
+      user.companies = [...user.companies, company];
+      await userRepository.save(user);
+      console.log(`[seed] Usuario vinculado a empresa: ${SEED_COMPANY_NAME}`);
+    } else {
+      console.log(`[seed] Usuario ja vinculado a empresa: ${SEED_COMPANY_NAME}`);
     }
 
     console.log('[seed] Finalizado com sucesso');
@@ -46,4 +86,4 @@ async function run() {
   }
 }
 
-void run();
+run();

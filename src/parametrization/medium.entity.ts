@@ -1,16 +1,17 @@
 import {
+    Entity,
     Column,
     PrimaryGeneratedColumn,
     CreateDateColumn,
     UpdateDateColumn,
     ManyToOne,
     JoinColumn,
-    Entity,
 } from 'typeorm';
-import { Platform } from 'src/platform/platform.entity';
+import { Source } from './source.entity';
+import { UiBuyingType } from 'src/ui-configuration/ui-buying-type.entity';
 
 @Entity()
-export class Format {
+export class Medium {
     @PrimaryGeneratedColumn('uuid', { name: 'id' })
     id: string;
 
@@ -29,7 +30,11 @@ export class Format {
     @UpdateDateColumn({ name: 'updated_at', type: 'timestamp with time zone' })
     updatedAt: Date;
 
-    @ManyToOne(() => Platform, platform => platform.id, { nullable: false })
-    @JoinColumn({ name: 'platform_id', referencedColumnName: 'id' })
-    platform: Platform;
+    @ManyToOne(() => Source, (source) => source.mediums, { nullable: false })
+    @JoinColumn({ name: 'source_id', referencedColumnName: 'id' })
+    source: Source;
+
+    @ManyToOne(() => UiBuyingType, { nullable: true, onDelete: 'SET NULL' })
+    @JoinColumn({ name: 'ui_buying_type_id', referencedColumnName: 'id' })
+    uiBuyingType: UiBuyingType | null;
 }
