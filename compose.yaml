@@ -1,9 +1,7 @@
 services:
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: nest-app
+    image: node:20
+    working_dir: /app
     volumes:
       - .:/app
       - node_modules:/app/node_modules
@@ -12,10 +10,10 @@ services:
     env_file:
       - .env.development
     depends_on:
-      - postgres_parametrization
-    command: npm run start:dev
+      - postgres_local
+    command: sh -c "npm install && npm run start:dev"
     tty: true
-  postgres_parametrization:
+  postgres_local:
     image: postgres:15-alpine
     restart: always
     shm_size: 128mb

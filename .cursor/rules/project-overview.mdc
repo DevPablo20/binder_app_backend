@@ -1,0 +1,68 @@
+---
+description: Visão geral do binder_app_backend — domínio, stack, docs e ambiente de dev
+alwaysApply: true
+---
+
+# Binder App Backend
+
+Backend NestJS responsável pelas regras de negócio e operação da aplicação Binder.
+
+## Domínio de negócio
+
+| Conceito | Responsabilidade |
+|----------|------------------|
+| **User** | Usuários associados a uma ou mais companies (N:N via `user_company`) |
+| **Company** | Unidades da Binder (`shortId`, `status`) |
+| **Campaign** | Campanhas por unidade (`utmCampaign`, `utmId`, FK para company) |
+| **Auth** | Autenticação e autorização — JWT via cookie httpOnly, guard global, roles (`superadmin`, `editor`, `viewer`) |
+
+Módulos ativos: `AuthModule`, `UserModule`, `CompanyModule`, `CampaignModule`, `MailModule`, `DatabaseModule`.
+
+Fora do escopo atual: pastas `parametrization/` e `ui-configuration/` (não integradas ao `AppModule`).
+
+## Stack
+
+- **Framework:** [NestJS](https://nestjs.com/) 11
+- **ORM:** [TypeORM](https://typeorm.io/) 0.3.x (Data Mapper)
+- **Banco:** PostgreSQL 15 (serviço `postgres_local`)
+- **Auth:** `@nestjs/jwt` + bcrypt + cookie `access_token`
+- **Validação:** class-validator / class-transformer
+- **API docs:** Swagger em `/api`
+
+## Documentação de referência
+
+Consultar a documentação oficial em caso de dúvida de API ou padrão — não inventar APIs:
+
+- NestJS: https://nestjs.com/ (módulos, DI, guards, pipes)
+- TypeORM: https://typeorm.io/ (entities, relations, migrations, QueryBuilder)
+
+## Ambiente de desenvolvimento (Docker)
+
+Dev local usa apenas [`compose.yaml`](compose.yaml) — sem `build` nem Dockerfile.
+
+| Serviço | Porta host | Detalhe |
+|---------|------------|---------|
+| `app` | 8090 | imagem `node:20`, `npm install && npm run start:dev` no startup |
+| `postgres_local` | 55432 | dados em `./infra/postgres_data` |
+
+Volume nomeado `node_modules:/app/node_modules` separado do bind mount `.:/app` — necessário por módulos nativos (`bcrypt`); host e container compilam deps para ambientes diferentes.
+
+Fluxo de dependências (instalar **sempre no host**):
+
+1. `npm install <pkg>` no host
+2. `docker compose restart app` — o container sincroniza o volume com o `package-lock.json` montado
+
+Comandos úteis:
+
+- Subir ambiente: `docker compose --env-file .env.development up`
+- Reiniciar app após nova dependência: `docker compose restart app`
+- Migrations: `npm run migration:generate`, `migration:run`, `migration:revert`
+- Seeds: `npm run seed:run`
+- Env: `.env.development`
+
+## Diretrizes para o agente
+
+- Responder em português quando o usuário escrever em português
+- Seguir padrões existentes nos módulos (`entity`, `service`, `controller`, `module`, `dto`)
+- Diff mínimo — não alterar código fora do escopo pedido
+- Commits e PRs só quando explicitamente solicitados
