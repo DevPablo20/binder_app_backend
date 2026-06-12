@@ -10,7 +10,12 @@ import { UserCompany } from 'src/user-company/user-company.entity';
 import { UserSignature } from 'src/auth/userSignature.type';
 import { Role } from 'src/common/role.enum';
 import { hasMinRole } from 'src/common/role.util';
-import { CompanyDetailDto, CompanySummaryDto } from './company.dto';
+import {
+  CompanyDetailDto,
+  CompanySummaryDto,
+  CreateCompanyDto,
+  UpdateCompanyDto,
+} from './company.dto';
 import { UserSummaryDto } from 'src/user/user.dto';
 
 @Injectable()
@@ -35,12 +40,84 @@ export class CompanyService {
     return companies.map((company) => this.toSummaryDto(company));
   }
 
+  async findAllForAdmin(caller: UserSignature): Promise<CompanyDetailDto[]> {
+    this.assertSuperadmin(caller.role, 'listar todas as empresas');
+
+    const companies = await this.companyRepository.find({
+      order: { name: 'ASC' },
+    });
+
+    return companies.map((company) => this.toDetailDto(company));
+  }
+
   async findOne(id: string, caller: UserSignature): Promise<CompanyDetailDto> {
-    this.assertCompanyAccess(id, caller);
+    if (caller.role !== Role.Superadmin) {
+      this.assertCompanyAccess(id, caller);
+    }
 
     const company = await this.companyRepository.findOne({ where: { id } });
     if (!company) {
       throw new HttpException('Empresa não encontrada', HttpStatus.NOT_FOUND);
+    }
+
+    return this.toDetailDto(company);
+  }
+
+  async create(
+    dto: CreateCompanyDto,
+    caller: UserSignature,
+  ): Promise<CompanyDetailDto> {
+    this.assertSuperadmin(caller.role, 'criar empresas');
+
+    const company = this.companyRepository.create({
+      name: dto.name,
+      description: dto.description,
+      status: dto.status ?? true,
+    });
+
+    try {
+      await this.companyRepository.save(company);
+    } catch {
+      throw new HttpException(
+        'Nome de empresa já existe',
+        HttpStatus.CONFLICT,
+      );
+    }
+
+    await this.userCompanyRepository.save(
+      this.userCompanyRepository.create({
+        user: { id: caller.id },
+        company,
+        status: true,
+      }),
+    );
+
+    return this.toDetailDto(company);
+  }
+
+  async update(
+    id: string,
+    dto: UpdateCompanyDto,
+    caller: UserSignature,
+  ): Promise<CompanyDetailDto> {
+    this.assertSuperadmin(caller.role, 'editar empresas');
+
+    const company = await this.companyRepository.findOne({ where: { id } });
+    if (!company) {
+      throw new HttpException('Empresa não encontrada', HttpStatus.NOT_FOUND);
+    }
+
+    if (dto.name !== undefined) company.name = dto.name;
+    if (dto.description !== undefined) company.description = dto.description;
+    if (dto.status !== undefined) company.status = dto.status;
+
+    try {
+      await this.companyRepository.save(company);
+    } catch {
+      throw new HttpException(
+        'Nome de empresa já existe',
+        HttpStatus.CONFLICT,
+      );
     }
 
     return this.toDetailDto(company);
@@ -82,6 +159,15 @@ export class CompanyService {
     }
   }
 
+  private assertSuperadmin(userRole: Role, action: string): void {
+    if (userRole !== Role.Superadmin) {
+      throw new HttpException(
+        `Permissão insuficiente para ${action}`,
+        HttpStatus.FORBIDDEN,
+      );
+    }
+  }
+
   private assertMinRole(
     userRole: Role,
     minRole: Role,
@@ -99,7 +185,6 @@ export class CompanyService {
     return {
       id: company.id,
       name: company.name,
-      shortId: company.shortId,
       status: company.status,
     };
   }

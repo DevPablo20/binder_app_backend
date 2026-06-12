@@ -16,9 +16,6 @@ export class Company {
   @Column({ name: 'name', type: 'character varying', unique: true })
   name: string;
 
-  @Column({ name: 'short_id', type: 'character varying', unique: true })
-  shortId: string;
-
   @Column({ name: 'status', type: 'boolean', default: true })
   status: boolean;
 

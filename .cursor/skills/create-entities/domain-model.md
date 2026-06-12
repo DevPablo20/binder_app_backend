@@ -24,7 +24,6 @@ erDiagram
     Company {
         uuid id PK
         string name UK
-        string short_id UK
         boolean status
     }
     UserCompany {
@@ -62,6 +61,7 @@ erDiagram
 - `src/auth/auth.service.ts` — login, password reset
 - `src/auth/auth.guard.ts` — JWT validation; loads `userCompanies` to build session
 - `src/auth/userSignature.type.ts` — exposes `companyIds` from active memberships
+- `src/user/user.service.ts` — profile and user detail endpoints
 - `src/database/seeds/default.ts` — seed admin user and company link
 
 **Relationships**
@@ -85,7 +85,6 @@ erDiagram
 | Field | Business meaning |
 |-------|------------------|
 | `name` | Full company unit name (unique) |
-| `shortId` | Short unique identifier, e.g. for URLs or internal references |
 | `status` | Whether the company unit is active; inactive companies are excluded from `companyIds` |
 | `description` | Human-readable description of the unit |
 | `createdAt` / `updatedAt` | Audit timestamps |
@@ -93,6 +92,7 @@ erDiagram
 **Used by**
 
 - `src/auth/auth.guard.ts` — resolves `companyIds` for the authenticated session
+- `src/company/company.service.ts` — list and detail endpoints
 - `src/database/seeds/default.ts` — seed default company and link to admin user
 
 **Relationships**

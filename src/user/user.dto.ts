@@ -31,3 +31,14 @@ export class UserDetailDto extends UserSummaryDto {
 }
 
 export class MeResponseDto extends UserDetailDto {}
+
+export class RevokeUserCompanyResponseDto {
+  @ApiProperty()
+  userId: string;
+
+  @ApiProperty()
+  companyId: string;
+
+  @ApiProperty()
+  status: boolean;
+}

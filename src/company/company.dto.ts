@@ -1,4 +1,11 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  IsBoolean,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from 'class-validator';
 
 export class CompanySummaryDto {
   @ApiProperty()
@@ -6,9 +13,6 @@ export class CompanySummaryDto {
 
   @ApiProperty()
   name: string;
-
-  @ApiProperty()
-  shortId: string;
 
   @ApiProperty()
   status: boolean;
@@ -23,4 +27,42 @@ export class CompanyDetailDto extends CompanySummaryDto {
 
   @ApiProperty()
   updatedAt: Date;
+}
+
+export class CreateCompanyDto {
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(255)
+  name: string;
+
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  description: string;
+
+  @ApiPropertyOptional({ default: true })
+  @IsOptional()
+  @IsBoolean()
+  status?: boolean;
+}
+
+export class UpdateCompanyDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(255)
+  name?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  description?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  status?: boolean;
 }

@@ -7,7 +7,6 @@ import { UserCompany } from '../../user-company/user-company.entity';
 import { Role } from '../../common/role.enum';
 
 const SEED_COMPANY_NAME = 'Binder-DF';
-const SEED_COMPANY_SHORT_ID = 'binder-df';
 const SEED_COMPANY_DESCRIPTION = 'Unidade Binder Brasília-DF';
 
 async function run() {
@@ -52,14 +51,12 @@ async function run() {
     if (!company) {
       company = companyRepository.create({
         name: SEED_COMPANY_NAME,
-        shortId: SEED_COMPANY_SHORT_ID,
         status: true,
         description: SEED_COMPANY_DESCRIPTION,
       });
       await companyRepository.save(company);
       console.log(`[seed] Empresa criada: ${SEED_COMPANY_NAME}`);
     } else {
-      company.shortId = SEED_COMPANY_SHORT_ID;
       company.status = true;
       company.description = SEED_COMPANY_DESCRIPTION;
       await companyRepository.save(company);

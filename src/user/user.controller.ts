@@ -1,4 +1,10 @@
-import { Controller, Get, Param, ParseUUIDPipe } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+} from '@nestjs/common';
 import {
   ApiCookieAuth,
   ApiOperation,
@@ -9,7 +15,12 @@ import { CurrentUser } from 'src/auth/decorators/currentUser.decorator';
 import type { UserSignature } from 'src/auth/userSignature.type';
 import { Private } from 'src/auth/decorators/private.decorator';
 import { Role } from 'src/common/role.enum';
-import { MeResponseDto, UserDetailDto, UserSummaryDto } from './user.dto';
+import {
+  MeResponseDto,
+  RevokeUserCompanyResponseDto,
+  UserDetailDto,
+  UserSummaryDto,
+} from './user.dto';
 
 @ApiTags('User')
 @ApiCookieAuth()
@@ -35,6 +46,21 @@ export class UserController {
   })
   findAll(@CurrentUser() user: UserSignature): Promise<UserSummaryDto[]> {
     return this.userService.findAll(user);
+  }
+
+  @Private(Role.Editor, Role.Superadmin)
+  @Patch(':id/company/:companyId/revoke')
+  @ApiOperation({
+    summary: 'Revogar acesso à empresa',
+    description:
+      'Revoga o vínculo usuário-empresa (soft revoke). Superadmin: qualquer empresa. Editor: apenas empresas das quais faz parte.',
+  })
+  revokeCompanyAccess(
+    @Param('id', ParseUUIDPipe) userId: string,
+    @Param('companyId', ParseUUIDPipe) companyId: string,
+    @CurrentUser() user: UserSignature,
+  ): Promise<RevokeUserCompanyResponseDto> {
+    return this.userService.revokeCompanyAccess(userId, companyId, user);
   }
 
   @Get(':id')

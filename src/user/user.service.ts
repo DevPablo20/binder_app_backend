@@ -10,7 +10,7 @@ import { UserCompany } from 'src/user-company/user-company.entity';
 import { UserSignature } from 'src/auth/userSignature.type';
 import { Role } from 'src/common/role.enum';
 import { hasMinRole } from 'src/common/role.util';
-import { MeResponseDto, UserDetailDto, UserSummaryDto } from './user.dto';
+import { MeResponseDto, RevokeUserCompanyResponseDto, UserDetailDto, UserSummaryDto } from './user.dto';
 import { CompanySummaryDto } from 'src/company/company.dto';
 
 @Injectable()
@@ -75,6 +75,54 @@ export class UserService {
     return this.toDetailDto(user, callerCompanyIds);
   }
 
+  async revokeCompanyAccess(
+    userId: string,
+    companyId: string,
+    caller: UserSignature,
+  ): Promise<RevokeUserCompanyResponseDto> {
+    this.assertMinRole(caller.role, Role.Editor, 'revogar acesso de usuário');
+
+    if (caller.id === userId) {
+      throw new HttpException(
+        'Não é permitido revogar o próprio acesso',
+        HttpStatus.FORBIDDEN,
+      );
+    }
+
+    if (
+      caller.role !== Role.Superadmin &&
+      !caller.companyIds.includes(companyId)
+    ) {
+      throw new HttpException(
+        'Sem permissão para revogar acesso nesta empresa',
+        HttpStatus.FORBIDDEN,
+      );
+    }
+
+    const membership = await this.userCompanyRepository.findOne({
+      where: {
+        user: { id: userId },
+        company: { id: companyId },
+      },
+    });
+
+    if (!membership) {
+      throw new HttpException(
+        'Vínculo usuário-empresa não encontrado',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    if (!membership.status) {
+      return { userId, companyId, status: false };
+    }
+
+    membership.status = false;
+    await this.userCompanyRepository.save(membership);
+
+    return { userId, companyId, status: false };
+  }
+
   private async findUserWithCompanies(id: string): Promise<User | null> {
     return this.userRepository.findOne({
       where: { id },
@@ -131,7 +179,6 @@ export class UserService {
         .map((uc) => ({
           id: uc.company.id,
           name: uc.company.name,
-          shortId: uc.company.shortId,
           status: uc.company.status,
         })) ?? [];
 

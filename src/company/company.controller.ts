@@ -1,4 +1,12 @@
-import { Controller, Get, Param, ParseUUIDPipe } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+} from '@nestjs/common';
 import {
   ApiCookieAuth,
   ApiOperation,
@@ -9,7 +17,12 @@ import { CurrentUser } from 'src/auth/decorators/currentUser.decorator';
 import type { UserSignature } from 'src/auth/userSignature.type';
 import { Private } from 'src/auth/decorators/private.decorator';
 import { Role } from 'src/common/role.enum';
-import { CompanyDetailDto, CompanySummaryDto } from './company.dto';
+import {
+  CompanyDetailDto,
+  CompanySummaryDto,
+  CreateCompanyDto,
+  UpdateCompanyDto,
+} from './company.dto';
 import { UserSummaryDto } from 'src/user/user.dto';
 
 @ApiTags('Company')
@@ -25,6 +38,32 @@ export class CompanyController {
   })
   findAll(@CurrentUser() user: UserSignature): Promise<CompanySummaryDto[]> {
     return this.companyService.findAll(user);
+  }
+
+  @Private(Role.Superadmin)
+  @Get('admin/all')
+  @ApiOperation({
+    summary: 'Listar todas as empresas',
+    description: 'Lista todas as empresas (ativas e inativas). Apenas Superadmin.',
+  })
+  findAllForAdmin(
+    @CurrentUser() user: UserSignature,
+  ): Promise<CompanyDetailDto[]> {
+    return this.companyService.findAllForAdmin(user);
+  }
+
+  @Private(Role.Superadmin)
+  @Post()
+  @ApiOperation({
+    summary: 'Criar empresa',
+    description:
+      'Cria uma empresa e vincula o Superadmin criador automaticamente. Apenas Superadmin.',
+  })
+  create(
+    @Body() dto: CreateCompanyDto,
+    @CurrentUser() user: UserSignature,
+  ): Promise<CompanyDetailDto> {
+    return this.companyService.create(dto, user);
   }
 
   @Private(Role.Editor, Role.Superadmin)
@@ -44,12 +83,27 @@ export class CompanyController {
   @Get(':id')
   @ApiOperation({
     summary: 'Detalhe da empresa',
-    description: 'Retorna detalhes de uma empresa acessível ao usuário autenticado',
+    description:
+      'Retorna detalhes de uma empresa acessível ao usuário. Superadmin pode consultar qualquer empresa.',
   })
   findOne(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: UserSignature,
   ): Promise<CompanyDetailDto> {
     return this.companyService.findOne(id, user);
+  }
+
+  @Private(Role.Superadmin)
+  @Patch(':id')
+  @ApiOperation({
+    summary: 'Editar empresa',
+    description: 'Atualiza dados de uma empresa. Apenas Superadmin.',
+  })
+  update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateCompanyDto,
+    @CurrentUser() user: UserSignature,
+  ): Promise<CompanyDetailDto> {
+    return this.companyService.update(id, dto, user);
   }
 }
