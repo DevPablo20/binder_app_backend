@@ -1,0 +1,171 @@
+---
+description: Application tech stack, dependency versions, and version-specific best practices
+alwaysApply: true
+---
+
+# Tech Stack
+
+NestJS 11 REST API with TypeORM, PostgreSQL, JWT cookie auth, and MailerSend. See [project-structure.mdc](mdc:.cursor/rules/project-structure.mdc) for module layout.
+
+## Runtime
+
+| Component | Version | Notes |
+|-----------|---------|-------|
+| Node.js | **20** | `compose.yaml` uses `node:20`; `Dockerfile` uses `node:20-alpine` |
+| PostgreSQL | **15** | `postgres:15-alpine` in Docker Compose |
+| TypeScript | **5.9.3** | `module`/`moduleResolution`: `nodenext`; `target`: ES2023 |
+
+Version columns show **resolved** versions from `package-lock.json`. Ranges in `package.json` use `^`.
+
+## Core Framework
+
+| Package | Declared | Resolved | Role |
+|---------|----------|----------|------|
+| `@nestjs/common`, `@nestjs/core` | ^11.0.1 | **11.1.19** | Application framework |
+| `@nestjs/platform-express` | ^11.0.1 | **11.1.19** | HTTP adapter (Express 5) |
+| `@nestjs/config` | ^4.0.4 | **4.0.4** | Env config via `.env.${NODE_ENV}` |
+| `@nestjs/cli` | ^11.0.0 | **11.0.21** | Dev scaffolding & build |
+| `express` | ^5.2.1 | **5.2.1** | Underlying HTTP server |
+| `rxjs` | ^7.8.1 | **7.8.2** | Reactive streams (Nest internals) |
+| `reflect-metadata` | ^0.2.2 | **0.2.2** | Decorator metadata (required) |
+
+### NestJS 11 practices
+
+- Keep all `@nestjs/*` packages on the **same major** (11.x).
+- NestJS 11 defaults to **Express 5** — avoid Express 4 APIs or middleware that hasn't been updated.
+- Register cross-cutting concerns in `main.ts`: global `ValidationPipe`, Swagger, CORS, `cookie-parser`.
+- Use `ConfigModule.forRoot({ isGlobal: true, envFilePath: [\`./.env.${process.env.NODE_ENV}\`] })` — read secrets via `ConfigService.getOrThrow()` in factories.
+- Prefer `registerAsync` / `forRootAsync` with `ConfigService` injection over hard-coded config.
+- Use `@Injectable()`, constructor injection, and module `exports` for shared services — no custom provider tokens for repositories.
+
+```typescript
+// Global validation — already configured in main.ts
+app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }));
+```
+
+## Database
+
+| Package | Declared | Resolved | Role |
+|---------|----------|----------|------|
+| `typeorm` | ^0.3.28 | **0.3.28** | ORM & migrations |
+| `@nestjs/typeorm` | ^11.0.1 | **11.0.1** | NestJS integration |
+| `pg` | ^8.20.0 | **8.20.0** | PostgreSQL driver (used by TypeORM) |
+| `postgres` | ^3.4.9 | **3.4.9** | **Not used in source** — TypeORM uses `pg`; remove or use intentionally |
+
+### TypeORM 0.3 practices
+
+- **`synchronize: false`** always — schema changes go through migrations only.
+- Share config via `buildTypeOrmConfig()` in `typeorm.config.ts` for both NestJS and the CLI (`typeormFile.ts`).
+- Inject repos with `@InjectRepository(Entity)` — never raw `DataSource` in feature services unless doing transactions.
+- Entity conventions in this project:
+  - UUID primary keys: `@PrimaryGeneratedColumn('uuid')`
+  - Snake_case DB columns with explicit `name`
+  - `@CreateDateColumn` / `@UpdateDateColumn` with `timestamp with time zone`
+  - Relations loaded explicitly via `relations: { ... }` in queries
+- Migrations workflow: `npm run build` → `npm run migration:generate src/database/migrations/<name>` → `npm run migration:run`.
+- CLI reads compiled JS from `dist/` — always build before generating or running migrations.
+
+```typescript
+// Good — repository injection
+constructor(@InjectRepository(User) private userRepo: Repository<User>) {}
+
+// Bad — synchronize in any environment
+synchronize: true
+```
+
+## Validation & DTOs
+
+| Package | Declared | Resolved | Role |
+|---------|----------|----------|------|
+| `class-validator` | ^0.15.1 | **0.15.1** | DTO validation decorators |
+| `class-transformer` | ^0.5.1 | **0.5.1** | DTO transformation |
+
+### Practices
+
+- Put validation decorators on **DTO classes**, not entities.
+- Pair every DTO field exposed in Swagger with `@ApiProperty()` from `@nestjs/swagger`.
+- `ValidationPipe` already strips unknown properties (`whitelist`) and rejects extras (`forbidNonWhitelisted`) — do not disable these.
+- Add `transform: true` to `ValidationPipe` only when you need `@Type()` / `@Transform()` from class-transformer (e.g. query param coercion).
+
+## Authentication
+
+| Package | Declared | Resolved | Role |
+|---------|----------|----------|------|
+| `@nestjs/jwt` | ^11.0.2 | **11.0.2** | JWT sign/verify |
+| `bcrypt` | ^6.0.0 | **6.0.0** | Password hashing |
+| `cookie-parser` | ^1.4.7 | **1.4.7** | Parse `access_token` cookie |
+
+### Practices
+
+- Global `AuthGuard` via `APP_GUARD` — mark public routes with `@Public()`, role-restricted routes with `@Private(Role.X)`.
+- JWT stored in `access_token` cookie (also accepts `Authorization: Bearer` header).
+- Use `jwtService.verifyAsync()` in the guard; attach `UserSignature` to the request via `@CurrentUser()`.
+- Hash passwords with `bcrypt.hash()` and verify with `bcrypt.compare()` — never store or log plaintext passwords.
+- `bcrypt` v6 uses native bindings (`node-gyp-build`) — Docker image includes `python3 make g++` for compilation on Alpine.
+- Configure JWT via `JwtModule.registerAsync` with `secret` and `expiresIn` from env.
+
+## API Documentation
+
+| Package | Declared | Resolved | Role |
+|---------|----------|----------|------|
+| `@nestjs/swagger` | ^11.4.2 | **11.4.2** | OpenAPI / Swagger UI |
+
+### Practices
+
+- Swagger UI is served at **`/api`** — keep `DocumentBuilder` metadata in `main.ts`.
+- Decorate DTOs with `@ApiProperty()`; add `@ApiTags()`, `@ApiBearerAuth()` etc. on controllers as endpoints grow.
+- Swagger major version must match NestJS major (both 11.x).
+
+## Email
+
+| Package | Declared | Resolved | Role |
+|---------|----------|----------|------|
+| `mailersend` | ^3.0.0 | **3.0.0** | MailerSend REST SDK |
+
+### Practices
+
+- Instantiate `MailerSend` once in `MailService` with `MAIL_API_KEY` from config.
+- Build emails with `EmailParams`, `Sender`, and `Recipient` classes from the SDK.
+- Wrap send failures in `HttpException` — do not leak provider error details to clients.
+
+## Dev Tooling
+
+| Package | Declared | Resolved | Role |
+|---------|----------|----------|------|
+| `typescript` | ^5.7.3 | **5.9.3** | Type checking & compilation |
+| `eslint` | ^9.18.0 | **9.39.4** | Linting (flat config) |
+| `typescript-eslint` | ^8.20.0 | **8.59.2** | TS rules for ESLint 9 |
+| `prettier` | ^3.4.2 | **3.8.3** | Code formatting |
+| `jest` | ^30.0.0 | **30.4.0** | Unit tests |
+| `ts-jest` | ^29.2.5 | **29.4.9** | TS transform for Jest |
+| `supertest` | ^7.0.0 | **7.2.2** | HTTP assertions (e2e) |
+| `@nestjs/testing` | ^11.0.1 | **11.1.19** | Nest test utilities |
+
+### Practices
+
+- ESLint uses **flat config** (`eslint.config.mjs`) with `typescript-eslint` **recommendedTypeChecked** — run `npm run lint` before committing.
+- TypeScript config: `experimentalDecorators` + `emitDecoratorMetadata` required for Nest/TypeORM; `strictNullChecks: true` but not full strict mode.
+- Jest tests live alongside source as `*.spec.ts` under `src/`; e2e config at `test/jest-e2e.json`.
+- Prettier runs via ESLint plugin (`eslint-plugin-prettier`) — don't fight formatting manually.
+
+## Dependency Rules
+
+1. **Do not downgrade** NestJS or `@nestjs/*` packages independently — upgrade them together on the same major.
+2. **Do not enable** TypeORM `synchronize` — use migrations.
+3. **Do not add** ORM drivers beyond `pg` unless switching away from TypeORM's default PostgreSQL driver.
+4. **Prefer existing stack** over new libraries: validation → class-validator; auth → JWT + bcrypt; email → mailersend; HTTP → Nest/Express (not Fastify unless migrating).
+5. After adding dependencies, run `npm install` and verify `npm run build` + `npm run lint` pass.
+6. Pin-breaking upgrades (Express 4→5, Nest 10→11, TypeORM 0.2→0.3) require reading upstream migration guides — this project is already on the new majors.
+
+## Quick Reference
+
+```bash
+npm run start:dev          # Dev server (watch mode)
+docker compose up          # App :8090, Postgres :55432
+npm run build              # Compile TS → dist/
+npm run migration:generate src/database/migrations/<name>
+npm run migration:run      # Apply pending migrations
+npm run seed:run           # Run default seed
+npm run lint               # ESLint + Prettier
+npm test                   # Jest unit tests
+```
