@@ -7,7 +7,7 @@ import {
     ManyToMany,
     JoinTable,
 } from 'typeorm';
-import { Role } from 'src/auth/roles/roles.enum';
+import { Role } from 'src/common/role.enum';
 import { Company } from 'src/company/company.entity';
 
 @Entity()

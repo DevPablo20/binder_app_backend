@@ -1,6 +1,5 @@
-import { Campaign } from 'src/campaign/campaign.entity';
 import { User } from 'src/user/user.entity';
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, ManyToMany, OneToMany } from 'typeorm'
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, ManyToMany } from 'typeorm'
 
 @Entity()
 export class Company {
@@ -27,7 +26,4 @@ export class Company {
 
     @ManyToMany(() => User, (user) => user.companies)
     users: User[];
-
-    @OneToMany(() => Campaign, (campaign) => campaign.company)
-    campaigns: Campaign[];
 }

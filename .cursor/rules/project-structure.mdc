@@ -1,0 +1,76 @@
+---
+description: Directory structure, key files, and module layout for binder_parametrization
+alwaysApply: true
+---
+
+# Project Structure
+
+NestJS 11 + TypeORM + PostgreSQL API for BI binder parametrization.
+
+## Root Layout
+
+```
+binder_parametrization/
+├── src/                    # Application source (edit here)
+├── dist/                   # Compiled output — do not edit
+├── infra/postgres_data/    # Local Postgres volume (Docker)
+├── .cursor/rules/          # Cursor agent rules
+├── compose.yaml            # Dev stack: app + postgres_local
+├── Dockerfile
+├── .env.development        # Dev env vars (ConfigModule loads .env.${NODE_ENV})
+├── nest-cli.json           # sourceRoot: src
+├── package.json
+├── tsconfig.json
+└── tsconfig.build.json
+```
+
+## Entry Points
+
+| File | Role |
+|------|------|
+| `src/main.ts` | Bootstrap: Swagger (`/api`), CORS, cookie-parser, global ValidationPipe |
+| `src/app.module.ts` | Root module — registers all feature modules |
+
+## Feature Modules (`src/`)
+
+Each active feature follows NestJS conventions: `*.module.ts`, `*.controller.ts`, `*.service.ts`, `*.entity.ts`.
+
+| Folder | Status | Purpose |
+|--------|--------|---------|
+| `auth/` | Full module | JWT auth, global `AuthGuard`, decorators, roles |
+| `user/` | Full module | User CRUD |
+| `company/` | Full module | Company CRUD |
+| `mail/` | Full module | Email via MailerSend |
+| `database/` | Infrastructure | `TypeOrmModule.forRootAsync`, migrations, seeds |
+| `parametrization/` | Entities only | `source.entity.ts`, `medium.entity.ts` |
+| `ui-configuration/` | Entities only | `ui-platform`, `ui-channel`, `ui-buying-type` entities |
+| `common/` | Shared | Cross-cutting enums (`role.enum.ts`, `source-type.enum.ts`) |
+
+### Auth subfolders
+
+- `auth/decorators/` — `@Public()`, `@Private()`, `@CurrentUser()`
+
+### Database subfolders
+
+- `database/migrations/` — TypeORM migrations (run via `npm run migration:run`)
+- `database/seeds/` — Seed scripts (`npm run seed:run`)
+- `database/typeorm.config.ts` — Shared TypeORM config (NestJS + CLI)
+- `database/typeormFile.ts` — TypeORM CLI data source entry point
+
+## Conventions
+
+- **New features**: add a folder under `src/` with module/controller/service/entity, register entities via `TypeOrmModule.forFeature([...])`, then import in `app.module.ts`.
+- **Entities without modules**: `parametrization/` and `ui-configuration/` hold TypeORM entities pending full modules — register via `TypeOrmModule.forFeature` in their future modules.
+- **Env config**: `ConfigModule` is global; reads `./.env.${process.env.NODE_ENV}`.
+- **Do not edit** `dist/`, `node_modules/`, or `infra/postgres_data/`.
+
+## Useful Commands
+
+```bash
+npm run start:dev          # Dev server (port from APP_PORT, default 3000)
+docker compose up          # App on :8090, Postgres on :55432
+npm run migration:generate ./src/database/{migration_name} # Generate migration after entity changes
+npm run migration:show #List migration status
+npm run migration:run      # Apply migrations
+npm run seed:run           # Run default seed
+```

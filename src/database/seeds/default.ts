@@ -3,7 +3,7 @@ import { hash } from 'bcrypt';
 import dataSource from '../typeormFile';
 import { User } from '../../user/user.entity';
 import { Company } from '../../company/company.entity';
-import { Role } from '../../auth/roles/roles.enum';
+import { Role } from '../../common/role.enum';
 
 const SEED_COMPANY_NAME = 'Binder-DF';
 const SEED_COMPANY_SHORT_ID = 'binder-df';

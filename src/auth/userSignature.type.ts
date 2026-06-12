@@ -1,4 +1,4 @@
-import { Role } from "./roles/roles.enum";
+import { Role } from 'src/common/role.enum';
 
 export type UserSignature = {
     id: string;

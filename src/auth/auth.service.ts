@@ -1,5 +1,5 @@
-import { Inject, Injectable, HttpException, HttpStatus, Logger } from '@nestjs/common';
-import { DATA_SOURCE, USER_REPOSITORY } from '../database/constants';
+import { Injectable, HttpException, HttpStatus, Logger } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, MoreThan, Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { User } from 'src/user/user.entity';
@@ -13,8 +13,8 @@ import { randomUUID } from 'crypto';
 export class AuthService {
     private readonly logger = new Logger(AuthService.name)
     constructor(
-        @Inject(DATA_SOURCE) private readonly dataSource: DataSource,
-        @Inject(USER_REPOSITORY) private readonly userRepository: Repository<User>,
+        private readonly dataSource: DataSource,
+        @InjectRepository(User) private readonly userRepository: Repository<User>,
         private configService: ConfigService,
         private readonly jwtService: JwtService,
     ) { }
@@ -90,7 +90,7 @@ export class AuthService {
 
     async resetPassword(body: ResetPasswordDTO) {
         try {
-            const user = await this.dataSource.manager.findOne(User, {
+            const user = await this.userRepository.findOne({
                 where: {
                     passwordResetToken: body.token,
                     passwordResetExpires: MoreThan(new Date(Date.now()))
@@ -114,7 +114,7 @@ export class AuthService {
     }
 
     private async findUserByEmail(email: string, getPassword: boolean): Promise<User | null> {
-        return await this.dataSource.manager.findOne(User, {
+        return await this.userRepository.findOne({
             select: {
                 id: true,
                 password: getPassword

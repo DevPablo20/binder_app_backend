@@ -4,7 +4,6 @@ import { ConfigModule } from '@nestjs/config';
 import { DatabaseModule } from './database/database.module';
 import { UserModule } from './user/user.module';
 import { CompanyModule } from './company/company.module';
-import { CampaignModule } from './campaign/campaign.module';
 import { MailModule } from './mail/mail.module';
 
 @Module({
@@ -13,11 +12,10 @@ import { MailModule } from './mail/mail.module';
     isGlobal: true,
     envFilePath: [`./.env.${process.env.NODE_ENV}`]
   }),
-    AuthModule,
     DatabaseModule,
+    AuthModule,
     UserModule,
     CompanyModule,
-    CampaignModule,
     MailModule,
   ],
   controllers: [],

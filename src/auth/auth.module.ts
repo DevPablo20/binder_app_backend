@@ -3,15 +3,16 @@ import { AuthController } from './auth.controller';
 import { JwtModule } from '@nestjs/jwt';
 import { APP_GUARD } from '@nestjs/core';
 import { AuthService } from './auth.service';
-import { DatabaseModule } from '../database/database.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthGuard } from './auth.guard';
 import { JwtSignOptions } from '@nestjs/jwt';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { User } from '../user/user.entity';
 
 @Module({
   imports: [
     ConfigModule,
-    DatabaseModule,
+    TypeOrmModule.forFeature([User]),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

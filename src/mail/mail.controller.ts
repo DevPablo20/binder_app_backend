@@ -1,6 +1,6 @@
 import { Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
 import { Private } from '../auth/decorators/private.decorator';
-import { Role } from '../auth/roles/roles.enum';
+import { Role } from 'src/common/role.enum';
 import { MailService } from './mail.service';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 

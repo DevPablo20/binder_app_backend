@@ -1,12 +1,12 @@
-import { CanActivate, ExecutionContext, HttpException, HttpStatus, Inject, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import { CanActivate, ExecutionContext, HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
-import { DATA_SOURCE } from '../database/constants';
-import { DataSource } from 'typeorm';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { Request } from 'express';
 import { IS_PUBLIC_KEY } from './decorators/public.decorator';
 import { IS_PRIVATE_KEY } from './decorators/private.decorator';
-import { Role } from './roles/roles.enum';
+import { Role } from 'src/common/role.enum';
 import { ConfigService } from '@nestjs/config';
 import { User } from 'src/user/user.entity';
 import { UserSignature } from './userSignature.type';
@@ -18,7 +18,7 @@ export class AuthGuard implements CanActivate {
     private configService: ConfigService,
     private jwtService: JwtService,
     private reflector: Reflector,
-    @Inject(DATA_SOURCE) private dataSource: DataSource
+    @InjectRepository(User) private userRepository: Repository<User>,
   ) { }
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
@@ -48,7 +48,7 @@ export class AuthGuard implements CanActivate {
         }
       )
 
-      const user = await this.dataSource.manager.findOne(User, {
+      const user = await this.userRepository.findOne({
         where: { id: payload.id },
         relations: { companies: true }
       })
