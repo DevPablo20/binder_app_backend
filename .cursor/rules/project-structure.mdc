@@ -13,11 +13,11 @@ NestJS 11 + TypeORM + PostgreSQL API for BI binder parametrization.
 binder_parametrization/
 ├── src/                    # Application source (edit here)
 ├── dist/                   # Compiled output — do not edit
-├── infra/postgres_data/    # Local Postgres volume (Docker)
+├── infra/postgres_data/    # Local Postgres volume (Docker, gitignored)
 ├── .cursor/rules/          # Cursor agent rules
 ├── compose.yaml            # Dev stack: app + postgres_local
 ├── Dockerfile
-├── .env.development        # Dev env vars (ConfigModule loads .env.${NODE_ENV})
+├── .env.development        # Dev env vars
 ├── nest-cli.json           # sourceRoot: src
 ├── package.json
 ├── tsconfig.json
@@ -29,48 +29,89 @@ binder_parametrization/
 | File | Role |
 |------|------|
 | `src/main.ts` | Bootstrap: Swagger (`/api`), CORS, cookie-parser, global ValidationPipe |
-| `src/app.module.ts` | Root module — registers all feature modules |
+| `src/app.module.ts` | Root module — imports all feature modules |
 
-## Feature Modules (`src/`)
+## Source Tree (`src/`)
 
-Each active feature follows NestJS conventions: `*.module.ts`, `*.controller.ts`, `*.service.ts`, `*.entity.ts`.
+```
+src/
+├── main.ts
+├── app.module.ts
+├── auth/
+│   ├── auth.module.ts          # JWT, global AuthGuard (APP_GUARD)
+│   ├── auth.controller.ts      # login, logout, password reset
+│   ├── auth.service.ts
+│   ├── auth.guard.ts
+│   ├── auth.dto.ts
+│   ├── userSignature.type.ts
+│   └── decorators/
+│       ├── public.decorator.ts   # @Public() — skip auth
+│       ├── private.decorator.ts  # @Private(Role.X) — role check
+│       └── currentUser.decorator.ts
+├── user/
+│   ├── user.module.ts
+│   ├── user.controller.ts
+│   ├── user.service.ts
+│   └── user.entity.ts
+├── company/
+│   ├── company.module.ts
+│   ├── company.controller.ts
+│   ├── company.service.ts
+│   └── company.entity.ts
+├── mail/
+│   ├── mail.module.ts
+│   ├── mail.controller.ts
+│   └── mail.service.ts         # MailerSend integration
+├── database/
+│   ├── database.module.ts      # TypeOrmModule.forRootAsync
+│   ├── typeorm.config.ts       # Shared config (NestJS + CLI)
+│   ├── typeormFile.ts          # TypeORM CLI data source
+│   ├── migrations/
+│   └── seeds/default.ts
+└── common/
+    └── role.enum.ts            # Superadmin, Editor, Viewer
+```
 
-| Folder | Status | Purpose |
-|--------|--------|---------|
-| `auth/` | Full module | JWT auth, global `AuthGuard`, decorators, roles |
-| `user/` | Full module | User CRUD |
-| `company/` | Full module | Company CRUD |
-| `mail/` | Full module | Email via MailerSend |
-| `database/` | Infrastructure | `TypeOrmModule.forRootAsync`, migrations, seeds |
-| `parametrization/` | Entities only | `source.entity.ts`, `medium.entity.ts` |
-| `ui-configuration/` | Entities only | `ui-platform`, `ui-channel`, `ui-buying-type` entities |
-| `common/` | Shared | Cross-cutting enums (`role.enum.ts`, `source-type.enum.ts`) |
+## Active Modules
 
-### Auth subfolders
+| Module | Registered in `AppModule` | TypeORM |
+|--------|---------------------------|---------|
+| `DatabaseModule` | Yes (first) | `forRootAsync` via `buildTypeOrmConfig()` |
+| `AuthModule` | Yes | `forFeature([User])` |
+| `UserModule` | Yes | — (add `forFeature([User])` when implementing CRUD) |
+| `CompanyModule` | Yes | — (add `forFeature([Company])` when implementing CRUD) |
+| `MailModule` | Yes | — |
 
-- `auth/decorators/` — `@Public()`, `@Private()`, `@CurrentUser()`
+## TypeORM Pattern
 
-### Database subfolders
+- **Root connection**: `DatabaseModule` → `TypeOrmModule.forRootAsync` + `ConfigService`
+- **Feature repos**: `TypeOrmModule.forFeature([Entity])` in each module that needs DB access
+- **Injection**: `@InjectRepository(Entity)` — never use custom provider tokens
+- **CLI**: `typeormFile.ts` reuses `buildTypeOrmConfig()` from `typeorm.config.ts`
+- **Entities glob**: `src/**/*.entity.ts` (compiled to `dist/**/*.entity.js`)
 
-- `database/migrations/` — TypeORM migrations (run via `npm run migration:run`)
-- `database/seeds/` — Seed scripts (`npm run seed:run`)
-- `database/typeorm.config.ts` — Shared TypeORM config (NestJS + CLI)
-- `database/typeormFile.ts` — TypeORM CLI data source entry point
+## Auth
+
+- Global `AuthGuard` registered via `APP_GUARD` in `AuthModule`
+- JWT stored in `access_token` cookie (also accepts `Authorization` header)
+- `@CurrentUser()` returns `UserSignature` (`id`, `name`, `role`, `companyIds`)
+- `Role` enum lives in `src/common/role.enum.ts` — not in `auth/`
 
 ## Conventions
 
-- **New features**: add a folder under `src/` with module/controller/service/entity, register entities via `TypeOrmModule.forFeature([...])`, then import in `app.module.ts`.
-- **Entities without modules**: `parametrization/` and `ui-configuration/` hold TypeORM entities pending full modules — register via `TypeOrmModule.forFeature` in their future modules.
-- **Env config**: `ConfigModule` is global; reads `./.env.${process.env.NODE_ENV}`.
-- **Do not edit** `dist/`, `node_modules/`, or `infra/postgres_data/`.
+- **New feature**: create `src/<feature>/` with module, controller, service, entity; add `TypeOrmModule.forFeature([Entity])`; import in `app.module.ts`
+- **Shared enums/types**: place in `src/common/`
+- **Module order in `AppModule`**: `DatabaseModule` must load before modules that use TypeORM
+- **Env config**: global `ConfigModule` reads `./.env.${process.env.NODE_ENV}`
+- **Do not edit**: `dist/`, `node_modules/`, `infra/postgres_data/`
 
-## Useful Commands
+## Commands
 
 ```bash
-npm run start:dev          # Dev server (port from APP_PORT, default 3000)
-docker compose up          # App on :8090, Postgres on :55432
-npm run migration:generate ./src/database/{migration_name} # Generate migration after entity changes
-npm run migration:show #List migration status
-npm run migration:run      # Apply migrations
-npm run seed:run           # Run default seed
+npm run start:dev                                              # Dev server
+docker compose up                                              # App :8090, Postgres :55432
+npm run build && npm run migration:generate src/database/migrations/<name>
+npm run migration:run                                          # Apply migrations
+npm run migration:show                                         # Migration status
+npm run seed:run                                               # Run default seed
 ```
