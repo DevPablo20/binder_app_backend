@@ -33,6 +33,12 @@ export class AuthService {
                 throw new HttpException(msg, HttpStatus.FORBIDDEN);
             }
 
+            if (!user.isActive) {
+                const msg = 'Usuário inativo'
+                this.logger.warn(msg)
+                throw new HttpException(msg, HttpStatus.FORBIDDEN);
+            }
+
             const payload = { id: user.id }
 
             await queryRunner.commitTransaction()
@@ -117,13 +123,14 @@ export class AuthService {
         return await this.userRepository.findOne({
             select: {
                 id: true,
-                password: getPassword
+                isActive: true,
+                password: getPassword,
             },
             where: {
                 email
             },
             relations: {
-                companies: true
+                userCompanies: { company: true }
             }
         })
     }

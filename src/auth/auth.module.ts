@@ -8,11 +8,12 @@ import { AuthGuard } from './auth.guard';
 import { JwtSignOptions } from '@nestjs/jwt';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from '../user/user.entity';
+import { UserCompany } from '../user-company/user-company.entity';
 
 @Module({
   imports: [
     ConfigModule,
-    TypeOrmModule.forFeature([User]),
+    TypeOrmModule.forFeature([User, UserCompany]),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

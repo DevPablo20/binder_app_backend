@@ -3,6 +3,7 @@ import { hash } from 'bcrypt';
 import dataSource from '../typeormFile';
 import { User } from '../../user/user.entity';
 import { Company } from '../../company/company.entity';
+import { UserCompany } from '../../user-company/user-company.entity';
 import { Role } from '../../common/role.enum';
 
 const SEED_COMPANY_NAME = 'Binder-DF';
@@ -15,6 +16,7 @@ async function run() {
   try {
     const userRepository = dataSource.getRepository(User);
     const companyRepository = dataSource.getRepository(Company);
+    const userCompanyRepository = dataSource.getRepository(UserCompany);
 
     const email = process.env.SEED_USER_EMAIL ?? 'admin@admin.com';
     const plainPassword = process.env.SEED_USER_PASSWORD ?? 'Admin@123';
@@ -43,11 +45,6 @@ async function run() {
       console.log(`[seed] Usuario criado: ${email}`);
     }
 
-    user = await userRepository.findOneOrFail({
-      where: { email },
-      relations: { companies: true },
-    });
-
     let company = await companyRepository.findOne({
       where: { name: SEED_COMPANY_NAME },
     });
@@ -69,11 +66,21 @@ async function run() {
       console.log(`[seed] Empresa ja existia, dados sincronizados: ${SEED_COMPANY_NAME}`);
     }
 
-    if (!user.companies.some((c) => c.id === company.id)) {
-      user.companies = [...user.companies, company];
-      await userRepository.save(user);
+    let userCompany = await userCompanyRepository.findOne({
+      where: { user: { id: user.id }, company: { id: company.id } },
+    });
+
+    if (!userCompany) {
+      userCompany = userCompanyRepository.create({
+        user,
+        company,
+        status: true,
+      });
+      await userCompanyRepository.save(userCompany);
       console.log(`[seed] Usuario vinculado a empresa: ${SEED_COMPANY_NAME}`);
     } else {
+      userCompany.status = true;
+      await userCompanyRepository.save(userCompany);
       console.log(`[seed] Usuario ja vinculado a empresa: ${SEED_COMPANY_NAME}`);
     }
 

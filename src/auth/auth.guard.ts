@@ -50,17 +50,19 @@ export class AuthGuard implements CanActivate {
 
       const user = await this.userRepository.findOne({
         where: { id: payload.id },
-        relations: { companies: true }
+        relations: { userCompanies: { company: true } },
       })
 
       if (!user) throw new HttpException('Usuário não autenticado', HttpStatus.UNAUTHORIZED)
-
 
       const userSignature: UserSignature = {
         id: user.id,
         name: user.name,
         role: user.role,
-        companyIds: user.companies?.map((company) => company.id) ?? [],
+        companyIds:
+          user.userCompanies
+            ?.filter((uc) => uc.status && uc.company?.status)
+            .map((uc) => uc.company.id) ?? [],
       }
 
       request['userSignature'] = userSignature
