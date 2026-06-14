@@ -49,12 +49,12 @@ export class MailService {
         const acceptLink = `${frontendHost}/invite/accept/${token}`;
         const refuseLink = `${frontendHost}/invite/refuse/${token}`;
 
-        const subject = `🔗 Convite para ${inviterName} - Plataforma SECOM`;
+        const subject = `🔗 Convite para ${inviterName} - Plataforma Binder`;
 
         const text = `
 Olá!
 
-Você foi convidado(a) por ${inviterName} para participar da Plataforma SECOM.
+Você foi convidado(a) por ${inviterName} para participar da Plataforma Binder.
 
 📋 Detalhes do convite:
 • Convidado por: ${inviterName}
@@ -73,13 +73,49 @@ Se você não conseguir clicar nos links, copie e cole o token abaixo no sistema
 Token: ${token}
 
 Atenciosamente,
-Equipe SECOM - App
+Equipe Binder - App
         `;
 
         try {
             return await this.sendMail({ email }, subject, text);
         } catch (err) {
             throw new HttpException(`Falha ao enviar convite para ${email}`, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    async sendPasswordResetEmail(email: string, name: string, token: string) {
+        const frontendHost = this.config.get('FRONTEND_HOST');
+        const resetLink = `${frontendHost}/password/reset/${token}`;
+
+        const subject = 'Redefinição de senha - Plataforma Binder';
+
+        const text = `
+Olá, ${name}!
+
+Recebemos uma solicitação para redefinir sua senha na Plataforma Binder.
+
+🔑 Token de redefinição:
+${token}
+
+🔗 Quando o frontend estiver disponível, use este link:
+${resetLink}
+
+Para redefinir sua senha agora, envie uma requisição POST para /auth/password/reset com:
+• token: ${token}
+• password: sua nova senha
+
+⏰ Este token expira em 15 minutos.
+
+Se você não solicitou a redefinição de senha, ignore este email.
+
+Atenciosamente,
+Equipe Binder - App
+        `;
+
+        try {
+            return await this.sendMail({ email, name }, subject, text);
+        } catch (err) {
+            throw new HttpException(`Falha ao enviar email de redefinição para ${email}`, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 

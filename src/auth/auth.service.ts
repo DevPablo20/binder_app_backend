@@ -8,6 +8,7 @@ import { ForgottenPasswordDTO, LoginDTO, ResetPasswordDTO } from './auth.dto';
 import { Response } from 'express';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
+import { MailService } from 'src/mail/mail.service';
 
 @Injectable()
 export class AuthService {
@@ -17,6 +18,7 @@ export class AuthService {
         @InjectRepository(User) private readonly userRepository: Repository<User>,
         private configService: ConfigService,
         private readonly jwtService: JwtService,
+        private readonly mailService: MailService,
     ) { }
 
     async login(res: Response, { email, password }: LoginDTO) {
@@ -77,16 +79,29 @@ export class AuthService {
 
     async forgotPassword({ email }: ForgottenPasswordDTO) {
         try {
-            const user = await this.findUserByEmail(email, false)
+            const lowerEmail = email.toLowerCase()
+            const user = await this.findUserByEmail(lowerEmail, false)
             if (!user) {
                 const msg = 'Não existe usuário para o email fornecido'
                 this.logger.warn(msg)
                 throw new HttpException(msg, HttpStatus.FORBIDDEN);
             }
-            user.passwordResetToken = randomUUID()
-            user.passwordResetExpires = new Date(Date.now() + 15 * 60 * 1000)
+            if (!user.isActive) {
+                const msg = 'Usuário inativo'
+                this.logger.warn(msg)
+                throw new HttpException(msg, HttpStatus.FORBIDDEN);
+            }
+            const token = randomUUID()
+            const expires = new Date(Date.now() + 15 * 60 * 1000)
 
-            await this.userRepository.save(user)
+            await this.userRepository.update(user.id, {
+                passwordResetToken: token,
+                passwordResetExpires: expires,
+            })
+
+            await this.mailService.sendPasswordResetEmail(user.email, user.name, token)
+
+            return { message: 'Email de recuperação enviado' }
         } catch (err) {
             const msg = 'Erro ao solicitar esquecimento de senha'
             this.logger.error(msg, err)
@@ -112,6 +127,8 @@ export class AuthService {
             user.passwordResetToken = null
 
             await this.userRepository.save(user)
+
+            return { message: 'Senha redefinida com sucesso' }
         } catch (err) {
             const msg = 'Erro ao fazer reset de senha'
             this.logger.error(msg, err)
@@ -123,6 +140,8 @@ export class AuthService {
         return await this.userRepository.findOne({
             select: {
                 id: true,
+                name: true,
+                email: true,
                 isActive: true,
                 password: getPassword,
             },

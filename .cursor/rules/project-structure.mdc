@@ -38,11 +38,12 @@ src/
 ├── main.ts
 ├── app.module.ts
 ├── auth/
-│   ├── auth.module.ts          # JWT, global AuthGuard (APP_GUARD)
-│   ├── auth.controller.ts      # login, logout, password reset
-│   ├── auth.service.ts
+│   ├── auth.module.ts          # JWT, global AuthGuard (APP_GUARD), imports MailModule
+│   ├── auth.controller.ts      # login, logout, password/forgot, password/reset
+│   ├── auth.service.ts         # login + password reset; injects MailService
+│   ├── auth.service.spec.ts    # forgot/reset behavior contract
 │   ├── auth.guard.ts
-│   ├── auth.dto.ts
+│   ├── auth.dto.ts             # LoginDTO, ForgottenPasswordDTO, ResetPasswordDTO
 │   ├── userSignature.type.ts
 │   └── decorators/
 │       ├── public.decorator.ts   # @Public() — skip auth
@@ -59,9 +60,8 @@ src/
 │   ├── company.service.ts
 │   └── company.entity.ts
 ├── mail/
-│   ├── mail.module.ts
-│   ├── mail.controller.ts
-│   └── mail.service.ts         # MailerSend integration
+│   ├── mail.module.ts          # exports MailService only (no controller)
+│   └── mail.service.ts         # MailerSend: sendMail, sendInviteEmail, sendPasswordResetEmail
 ├── database/
 │   ├── database.module.ts      # TypeOrmModule.forRootAsync
 │   ├── typeorm.config.ts       # Shared config (NestJS + CLI)
@@ -77,10 +77,10 @@ src/
 | Module | Registered in `AppModule` | TypeORM |
 |--------|---------------------------|---------|
 | `DatabaseModule` | Yes (first) | `forRootAsync` via `buildTypeOrmConfig()` |
-| `AuthModule` | Yes | `forFeature([User])` |
+| `AuthModule` | Yes | `forFeature([User, UserCompany])`; imports `MailModule` |
 | `UserModule` | Yes | — (add `forFeature([User])` when implementing CRUD) |
 | `CompanyModule` | Yes | — (add `forFeature([Company])` when implementing CRUD) |
-| `MailModule` | Yes | — |
+| `MailModule` | Yes | — (service-only; consumed by `AuthModule`) |
 
 ## TypeORM Pattern
 
@@ -96,6 +96,26 @@ src/
 - JWT stored in `access_token` cookie (also accepts `Authorization` header)
 - `@CurrentUser()` returns `UserSignature` (`id`, `name`, `role`, `companyIds`)
 - `Role` enum lives in `src/common/role.enum.ts` — not in `auth/`
+- Public routes: `POST /auth/login`, `POST /auth/logout`, `POST /auth/password/forgot`, `POST /auth/password/reset`
+
+### Password reset
+
+`AuthService` owns the flow; `MailService` sends the email. No public mail routes.
+
+| Route | DTO | Behavior |
+|-------|-----|----------|
+| `POST /auth/password/forgot` | `ForgottenPasswordDTO` (`email`) | Lowercase email, reject missing/inactive user (403), `repository.update()` UUID token + 15 min expiry on `User`, call `sendPasswordResetEmail()` |
+| `POST /auth/password/reset` | `ResetPasswordDTO` (`token`, `password`) | Validate token + non-expired `passwordResetExpires`, bcrypt hash, clear reset columns |
+
+- Success responses: `Email de recuperação enviado`, `Senha redefinida com sucesso`
+- Tests: `src/auth/auth.service.spec.ts`
+- User columns: `password_reset_token`, `password_reset_expires` on `user.entity.ts`
+
+## Cross-Module Wiring
+
+- `AuthModule` imports `MailModule` to send password-reset emails from `AuthService`
+- `MailModule` exports `MailService` only — no HTTP routes; email is triggered by auth, not by direct mail endpoints
+- Feature modules that need email should import `MailModule` and inject `MailService` — do not instantiate MailerSend outside `mail.service.ts`
 
 ## Conventions
 

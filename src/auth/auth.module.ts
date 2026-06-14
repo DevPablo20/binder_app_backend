@@ -9,10 +9,12 @@ import { JwtSignOptions } from '@nestjs/jwt';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from '../user/user.entity';
 import { UserCompany } from '../user-company/user-company.entity';
+import { MailModule } from '../mail/mail.module';
 
 @Module({
   imports: [
     ConfigModule,
+    MailModule,
     TypeOrmModule.forFeature([User, UserCompany]),
     JwtModule.registerAsync({
       imports: [ConfigModule],

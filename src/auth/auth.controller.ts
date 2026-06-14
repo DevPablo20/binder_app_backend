@@ -36,6 +36,7 @@ export class AuthController {
     @Public()
     @ApiCookieAuth()
     @Post('password/forgot')
+    @HttpCode(HttpStatus.OK)
     @ApiOperation({ summary: 'Esqueci a senha', description: 'Envia email para alterar a senha do usuário' })
     async forgotPassword(@Body() body: ForgottenPasswordDTO) {
         return await this.authService.forgotPassword(body)
@@ -44,6 +45,7 @@ export class AuthController {
     @Public()
     @ApiCookieAuth()
     @Post('password/reset')
+    @HttpCode(HttpStatus.OK)
     @ApiOperation({ summary: 'Reset de senha', description: 'Rota callback para redefinir a senha' })
     async resetPassword(@Body() body: ResetPasswordDTO) {
         return await this.authService.resetPassword(body)
