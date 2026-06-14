@@ -4,14 +4,13 @@ services:
     working_dir: /app
     volumes:
       - .:/app
-      - node_modules:/app/node_modules
     ports:
       - "8090:8090"
     env_file:
       - .env.development
     depends_on:
       - postgres_local
-    command: sh -c "npm run start:dev"
+    command: sh -c "npm install && npm run start:dev"
     tty: true
   postgres_local:
     image: postgres:15-alpine
@@ -22,9 +21,8 @@ services:
     environment:
       - POSTGRES_PASSWORD=${DB_PASSWORD}
       - POSTGRES_USER=${DB_USER}
+      - POSTGRES_DB=${DB_DATABASE}
     volumes:
       - ./infra/postgres_data:/var/lib/postgresql/data
     ports:
       - "55432:5432"
-volumes:
-  node_modules:
