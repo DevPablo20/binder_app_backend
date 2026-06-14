@@ -1,6 +1,6 @@
 # Domain Model
 
-Living reference for what each entity means in **binder_parametrization** and why relationships exist. Read this before designing new entities or relations.
+Living reference for what each entity means in **binder_app_backend** and why relationships exist. Read this before designing new entities or relations.
 
 **Maintenance rule:** update this file whenever a new entity or relationship is added or changed. Do not skip — agents and developers rely on it for business context.
 

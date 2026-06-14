@@ -1,5 +1,5 @@
 ---
-description: Directory structure, key files, and module layout for binder_parametrization
+description: Directory structure, key files, and module layout for binder_app_backend
 alwaysApply: true
 ---
 
@@ -10,7 +10,7 @@ NestJS 11 + TypeORM + PostgreSQL API for BI binder parametrization.
 ## Root Layout
 
 ```
-binder_parametrization/
+binder_app_backend/
 ├── src/                    # Application source (edit here)
 ├── dist/                   # Compiled output — do not edit
 ├── infra/postgres_data/    # Local Postgres volume (Docker, gitignored)

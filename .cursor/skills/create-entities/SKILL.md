@@ -1,7 +1,7 @@
 ---
 name: create-entities
 description: >-
-  Creates TypeORM entities and relationships for binder_parametrization following
+  Creates TypeORM entities and relationships for binder_app_backend following
   project conventions. Use when adding new database models, entity files,
   TypeORM relations (OneToMany, ManyToOne, ManyToMany, OneToOne), junction tables,
   or wiring entities into NestJS modules and migrations.
