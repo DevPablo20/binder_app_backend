@@ -23,8 +23,9 @@ import { MailModule } from '../mail/mail.module';
         global: true,
         secret: config.getOrThrow<string>('JWT_SECRET_KEY'),
         signOptions: {
-          expiresIn: config.getOrThrow<JwtSignOptions['expiresIn']>('JWT_EXPIRES_IN'),
-        }
+          expiresIn:
+            config.getOrThrow<JwtSignOptions['expiresIn']>('JWT_EXPIRES_IN'),
+        },
       }),
     }),
   ],
@@ -33,9 +34,9 @@ import { MailModule } from '../mail/mail.module';
     AuthService,
     {
       provide: APP_GUARD,
-      useClass: AuthGuard
-    }
+      useClass: AuthGuard,
+    },
   ],
-  exports: [AuthService]
+  exports: [AuthService],
 })
-export class AuthModule { }
+export class AuthModule {}

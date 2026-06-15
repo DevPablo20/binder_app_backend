@@ -1,8 +1,4 @@
-import {
-  HttpException,
-  HttpStatus,
-  Injectable,
-} from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { Company } from './company.entity';
@@ -78,10 +74,7 @@ export class CompanyService {
     try {
       await this.companyRepository.save(company);
     } catch {
-      throw new HttpException(
-        'Nome de empresa já existe',
-        HttpStatus.CONFLICT,
-      );
+      throw new HttpException('Nome de empresa já existe', HttpStatus.CONFLICT);
     }
 
     await this.userCompanyRepository.save(
@@ -114,10 +107,7 @@ export class CompanyService {
     try {
       await this.companyRepository.save(company);
     } catch {
-      throw new HttpException(
-        'Nome de empresa já existe',
-        HttpStatus.CONFLICT,
-      );
+      throw new HttpException('Nome de empresa já existe', HttpStatus.CONFLICT);
     }
 
     return this.toDetailDto(company);
@@ -168,11 +158,7 @@ export class CompanyService {
     }
   }
 
-  private assertMinRole(
-    userRole: Role,
-    minRole: Role,
-    action: string,
-  ): void {
+  private assertMinRole(userRole: Role, minRole: Role, action: string): void {
     if (!hasMinRole(userRole, minRole)) {
       throw new HttpException(
         `Permissão insuficiente para ${action}`,

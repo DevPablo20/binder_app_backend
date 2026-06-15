@@ -1,8 +1,4 @@
-import {
-  HttpException,
-  HttpStatus,
-  Injectable,
-} from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { User } from './user.entity';
@@ -10,7 +6,12 @@ import { UserCompany } from 'src/user-company/user-company.entity';
 import { UserSignature } from 'src/auth/userSignature.type';
 import { Role } from 'src/common/role.enum';
 import { hasMinRole } from 'src/common/role.util';
-import { MeResponseDto, RevokeUserCompanyResponseDto, UserDetailDto, UserSummaryDto } from './user.dto';
+import {
+  MeResponseDto,
+  RevokeUserCompanyResponseDto,
+  UserDetailDto,
+  UserSummaryDto,
+} from './user.dto';
 import { CompanySummaryDto } from 'src/company/company.dto';
 
 @Injectable()
@@ -141,11 +142,7 @@ export class UserService {
     );
   }
 
-  private assertMinRole(
-    userRole: Role,
-    minRole: Role,
-    action: string,
-  ): void {
+  private assertMinRole(userRole: Role, minRole: Role, action: string): void {
     if (!hasMinRole(userRole, minRole)) {
       throw new HttpException(
         `Permissão insuficiente para ${action}`,

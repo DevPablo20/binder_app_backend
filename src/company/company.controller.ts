@@ -7,11 +7,7 @@ import {
   Patch,
   Post,
 } from '@nestjs/common';
-import {
-  ApiCookieAuth,
-  ApiOperation,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CompanyService } from './company.service';
 import { CurrentUser } from 'src/auth/decorators/currentUser.decorator';
 import type { UserSignature } from 'src/auth/userSignature.type';
@@ -34,7 +30,8 @@ export class CompanyController {
   @Get()
   @ApiOperation({
     summary: 'Minhas empresas',
-    description: 'Lista as empresas ativas às quais o usuário autenticado tem acesso',
+    description:
+      'Lista as empresas ativas às quais o usuário autenticado tem acesso',
   })
   findAll(@CurrentUser() user: UserSignature): Promise<CompanySummaryDto[]> {
     return this.companyService.findAll(user);
@@ -44,7 +41,8 @@ export class CompanyController {
   @Get('admin/all')
   @ApiOperation({
     summary: 'Listar todas as empresas',
-    description: 'Lista todas as empresas (ativas e inativas). Apenas Superadmin.',
+    description:
+      'Lista todas as empresas (ativas e inativas). Apenas Superadmin.',
   })
   findAllForAdmin(
     @CurrentUser() user: UserSignature,

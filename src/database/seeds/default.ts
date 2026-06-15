@@ -60,7 +60,9 @@ async function run() {
       company.status = true;
       company.description = SEED_COMPANY_DESCRIPTION;
       await companyRepository.save(company);
-      console.log(`[seed] Empresa ja existia, dados sincronizados: ${SEED_COMPANY_NAME}`);
+      console.log(
+        `[seed] Empresa ja existia, dados sincronizados: ${SEED_COMPANY_NAME}`,
+      );
     }
 
     let userCompany = await userCompanyRepository.findOne({
@@ -78,7 +80,9 @@ async function run() {
     } else {
       userCompany.status = true;
       await userCompanyRepository.save(userCompany);
-      console.log(`[seed] Usuario ja vinculado a empresa: ${SEED_COMPANY_NAME}`);
+      console.log(
+        `[seed] Usuario ja vinculado a empresa: ${SEED_COMPANY_NAME}`,
+      );
     }
 
     console.log('[seed] Finalizado com sucesso');

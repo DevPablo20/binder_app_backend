@@ -1,15 +1,5 @@
-import {
-  Controller,
-  Get,
-  Param,
-  ParseUUIDPipe,
-  Patch,
-} from '@nestjs/common';
-import {
-  ApiCookieAuth,
-  ApiOperation,
-  ApiTags,
-} from '@nestjs/swagger';
+import { Controller, Get, Param, ParseUUIDPipe, Patch } from '@nestjs/common';
+import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { UserService } from './user.service';
 import { CurrentUser } from 'src/auth/decorators/currentUser.decorator';
 import type { UserSignature } from 'src/auth/userSignature.type';
@@ -31,7 +21,8 @@ export class UserController {
   @Get('me')
   @ApiOperation({
     summary: 'Meu perfil',
-    description: 'Retorna o perfil do usuário autenticado e suas empresas ativas',
+    description:
+      'Retorna o perfil do usuário autenticado e suas empresas ativas',
   })
   getMe(@CurrentUser() user: UserSignature): Promise<MeResponseDto> {
     return this.userService.getMe(user);

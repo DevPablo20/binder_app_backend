@@ -8,6 +8,7 @@ import {
 } from 'typeorm';
 import { Role } from 'src/common/role.enum';
 import { UserCompany } from 'src/user-company/user-company.entity';
+import { Invite } from 'src/invite/invite.entity';
 
 @Entity()
 export class User {
@@ -62,4 +63,7 @@ export class User {
 
   @OneToMany(() => UserCompany, (userCompany) => userCompany.user)
   userCompanies: UserCompany[];
+
+  @OneToMany(() => Invite, (invite) => invite.invitedBy)
+  invites: Invite[];
 }

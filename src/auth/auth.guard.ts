@@ -1,4 +1,11 @@
-import { CanActivate, ExecutionContext, HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
+import {
+  CanActivate,
+  ExecutionContext,
+  HttpException,
+  HttpStatus,
+  Injectable,
+  Logger,
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -13,47 +20,51 @@ import { UserSignature } from './userSignature.type';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
-  private readonly logger = new Logger(AuthGuard.name)
+  private readonly logger = new Logger(AuthGuard.name);
   constructor(
     private configService: ConfigService,
     private jwtService: JwtService,
     private reflector: Reflector,
     @InjectRepository(User) private userRepository: Repository<User>,
-  ) { }
+  ) {}
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
       context.getClass(),
-    ])
+    ]);
 
-    const requiredRoles = this.reflector.getAllAndOverride<Role[]>(IS_PRIVATE_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ])
+    const requiredRoles = this.reflector.getAllAndOverride<Role[]>(
+      IS_PRIVATE_KEY,
+      [context.getHandler(), context.getClass()],
+    );
 
-    const request = context.switchToHttp().getRequest()
-    const token = this.extractTokenFromRequest(request)
+    const request = context.switchToHttp().getRequest();
+    const token = this.extractTokenFromRequest(request);
 
     try {
       if (isPublic) {
-        return true
+        return true;
       }
       if (!token) {
-        throw new HttpException('Usuário não autenticado', HttpStatus.UNAUTHORIZED)
+        throw new HttpException(
+          'Usuário não autenticado',
+          HttpStatus.UNAUTHORIZED,
+        );
       }
-      const payload = await this.jwtService.verifyAsync(
-        token,
-        {
-          secret: this.configService.get('JWT_SECRET_KEY')
-        }
-      )
+      const payload = await this.jwtService.verifyAsync(token, {
+        secret: this.configService.get('JWT_SECRET_KEY'),
+      });
 
       const user = await this.userRepository.findOne({
         where: { id: payload.id },
         relations: { userCompanies: { company: true } },
-      })
+      });
 
-      if (!user) throw new HttpException('Usuário não autenticado', HttpStatus.UNAUTHORIZED)
+      if (!user)
+        throw new HttpException(
+          'Usuário não autenticado',
+          HttpStatus.UNAUTHORIZED,
+        );
 
       const userSignature: UserSignature = {
         id: user.id,
@@ -63,20 +74,23 @@ export class AuthGuard implements CanActivate {
           user.userCompanies
             ?.filter((uc) => uc.status && uc.company?.status)
             .map((uc) => uc.company.id) ?? [],
-      }
+      };
 
-      request['userSignature'] = userSignature
-
+      request['userSignature'] = userSignature;
 
       if (requiredRoles && requiredRoles.length > 0) {
         const hasRole = requiredRoles.includes(userSignature.role);
-        if (!hasRole) throw new HttpException('Permissão insuficiente para o usuário', HttpStatus.UNAUTHORIZED)
+        if (!hasRole)
+          throw new HttpException(
+            'Permissão insuficiente para o usuário',
+            HttpStatus.UNAUTHORIZED,
+          );
       }
 
-      return true
+      return true;
     } catch (err) {
-      this.logger.error(err)
-      throw err
+      this.logger.error(err);
+      throw err;
     }
   }
 
@@ -91,6 +105,6 @@ export class AuthGuard implements CanActivate {
       return authHeader.split(' ')[1];
     }
 
-    return undefined
+    return undefined;
   }
 }

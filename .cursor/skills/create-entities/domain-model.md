@@ -14,6 +14,8 @@ The app uses a **multi-company access model**. A single user can belong to multi
 erDiagram
     User ||--o{ UserCompany : "has memberships"
     Company ||--o{ UserCompany : "has members"
+    User ||--o{ Invite : "sends"
+    Invite }o--o{ Company : "targets via invite_company"
     User {
         uuid id PK
         string email UK
@@ -31,6 +33,19 @@ erDiagram
         uuid user_id FK
         uuid company_id FK
         boolean status
+    }
+    Invite {
+        uuid id PK
+        string email
+        string token UK
+        enum role
+        enum status
+        timestamp expires_at
+        uuid invited_by_id FK
+    }
+    invite_company {
+        uuid invite_id FK
+        uuid company_id FK
     }
 ```
 
@@ -69,6 +84,7 @@ erDiagram
 | Related entity | Type | Owning side | Business reason |
 |----------------|------|-------------|-----------------|
 | UserCompany | OneToMany | UserCompany (`user_id` FK) | User has zero or more company memberships |
+| Invite | OneToMany | Invite (`invited_by_id` FK) | User sends zero or more invites |
 
 ---
 
@@ -137,6 +153,66 @@ erDiagram
 
 ---
 
+### Invite
+
+| | |
+|---|---|
+| **Business role** | Stores invite-flow data before a user gains company access. One invite can target multiple companies with a single token and role. On accept, creates `UserCompany` rows and sets the invitee's global role. |
+| **Source file** | `src/invite/invite.entity.ts` |
+| **Module** | `src/invite/invite.module.ts` |
+
+**Key fields**
+
+| Field | Business meaning |
+|-------|------------------|
+| `email` | Invitee email address (normalized to lowercase in service layer) |
+| `token` | Unique public token for accept/refuse links (no auth required) |
+| `role` | App-wide role to assign on accept (`superadmin`, `editor`, `viewer`) |
+| `status` | Lifecycle: `pending`, `accepted`, `refused`, `expired`, `cancelled` |
+| `expiresAt` | Invite expiry (default 7 days); passed invites become `expired` |
+| `acceptedAt` / `refusedAt` / `cancelledAt` | Timestamps for terminal transitions |
+| `invitedBy` | User who sent the invite |
+| `companies` | One or more company units included in this invite |
+| `createdAt` / `updatedAt` | Audit timestamps |
+
+**Lifecycle**
+
+| Status | Terminal? | Next actions |
+|--------|-----------|--------------|
+| `pending` | No | Accept, refuse, cancel, or expire |
+| `expired` | No | Resend (new token + expiry → `pending`) or cancel |
+| `accepted` | Yes | Flow complete — `UserCompany` rows created |
+| `refused` | Yes | Flow complete — invitee declined |
+| `cancelled` | Yes | Flow complete — inviter revoked invite |
+
+**Used by**
+
+- `src/invite/invite.service.ts` — full invite lifecycle:
+  - `POST /invite` — create + email (Editor/Superadmin)
+  - `GET /invite` — list sent invites
+  - `POST /invite/:id/cancel` — cancel pending/expired
+  - `POST /invite/:id/resend` — resend expired
+  - `POST /invite/accept` — public; creates **new user only** (rejects existing email)
+  - `POST /invite/refuse` — public; marks refused
+- `src/mail/mail.service.ts` — `sendInviteEmail` on create/resend
+
+**Accept constraint:** invite accept is for **new users only**. If the email already exists, create and accept both reject — role/company changes for existing users belong to a separate flow.
+
+**Relationships**
+
+| Related entity | Type | Owning side | Business reason |
+|----------------|------|-------------|-----------------|
+| User | ManyToOne | Invite (`invited_by_id` FK) | Every invite is sent by one user |
+| Company | ManyToMany | Invite (`invite_company` junction) | One invite can grant access to multiple companies at once |
+
+**Authorization rules (enforced in service, not entity):**
+
+- Superadmin: invite to any active company; assign any role
+- Editor: invite only to companies they belong to; assign `editor` or `viewer` only
+- Viewer: cannot invite
+
+---
+
 ## Relationship Map
 
 | From | To | Type | Junction / FK | Owning side | Business rationale |
@@ -144,6 +220,8 @@ erDiagram
 | User | UserCompany | OneToMany | `user_company.user_id` | UserCompany | User has multiple company memberships |
 | Company | UserCompany | OneToMany | `user_company.company_id` | UserCompany | Company has multiple user memberships |
 | User | Company | ManyToMany (via UserCompany) | `user_company` | UserCompany | Multi-company access with per-link `status` for soft revoke |
+| User | Invite | OneToMany | `invite.invited_by_id` | Invite | User sends zero or more invites |
+| Invite | Company | ManyToMany | `invite_company` | Invite | One invite can target multiple companies in a single flow |
 
 **Junction table `user_company`**
 
@@ -151,6 +229,13 @@ erDiagram
 - `UNIQUE (user_id, company_id)` — one link per user–company pair
 - `status=false` = soft revoke; no re-login required for change to take effect
 - Link example: `src/database/seeds/default.ts` (find or create `UserCompany` with `status: true`)
+
+**Junction table `invite_company`**
+
+- Managed by TypeORM `@JoinTable` on `Invite` (no inverse on `Company`)
+- Columns: `invite_id`, `company_id`
+- `UNIQUE (invite_id, company_id)` — one link per invite–company pair
+- No extra fields on junction; invite metadata lives on `Invite` row
 
 ---
 

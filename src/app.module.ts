@@ -5,20 +5,22 @@ import { DatabaseModule } from './database/database.module';
 import { UserModule } from './user/user.module';
 import { CompanyModule } from './company/company.module';
 import { MailModule } from './mail/mail.module';
+import { InviteModule } from './invite/invite.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
-    isGlobal: true,
-    envFilePath: [`./.env.${process.env.NODE_ENV}`]
-  }),
+      isGlobal: true,
+      envFilePath: [`./.env.${process.env.NODE_ENV}`],
+    }),
     DatabaseModule,
     AuthModule,
     UserModule,
     CompanyModule,
     MailModule,
+    InviteModule,
   ],
   controllers: [],
   providers: [],
 })
-export class AppModule { }
+export class AppModule {}
