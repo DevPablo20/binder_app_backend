@@ -72,7 +72,7 @@ export class AuthGuard implements CanActivate {
         role: user.role,
         companyIds:
           user.userCompanies
-            ?.filter((uc) => uc.status && uc.company?.isActive)
+            ?.filter((uc) => uc.isActive && uc.company?.isActive)
             .map((uc) => uc.company.id) ?? [],
       };
 

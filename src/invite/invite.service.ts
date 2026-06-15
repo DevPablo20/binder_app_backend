@@ -147,7 +147,7 @@ export class InviteService {
         const userCompany = queryRunner.manager.create(UserCompany, {
           user,
           company,
-          status: true,
+          isActive: true,
         });
         await queryRunner.manager.save(userCompany);
       }

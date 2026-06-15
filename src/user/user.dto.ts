@@ -40,5 +40,5 @@ export class RevokeUserCompanyResponseDto {
   companyId: string;
 
   @ApiProperty()
-  status: boolean;
+  isActive: boolean;
 }

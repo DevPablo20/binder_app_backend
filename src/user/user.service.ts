@@ -40,7 +40,7 @@ export class UserService {
     const memberships = await this.userCompanyRepository.find({
       where: {
         company: { id: In(caller.companyIds) },
-        status: true,
+        isActive: true,
       },
       relations: { user: true },
     });
@@ -114,14 +114,14 @@ export class UserService {
       );
     }
 
-    if (!membership.status) {
-      return { userId, companyId, status: false };
+    if (!membership.isActive) {
+      return { userId, companyId, isActive: false };
     }
 
-    membership.status = false;
+    membership.isActive = false;
     await this.userCompanyRepository.save(membership);
 
-    return { userId, companyId, status: false };
+    return { userId, companyId, isActive: false };
   }
 
   private async findUserWithCompanies(id: string): Promise<User | null> {
@@ -135,7 +135,7 @@ export class UserService {
     return (
       user.userCompanies?.some(
         (uc) =>
-          uc.status &&
+          uc.isActive &&
           uc.company?.isActive &&
           callerCompanyIds.has(uc.company.id),
       ) ?? false
@@ -169,7 +169,7 @@ export class UserService {
       user.userCompanies
         ?.filter(
           (uc) =>
-            uc.status &&
+            uc.isActive &&
             uc.company?.isActive &&
             visibleCompanyIds.has(uc.company.id),
         )

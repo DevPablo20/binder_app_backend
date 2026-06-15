@@ -81,7 +81,7 @@ export class CompanyService {
       this.userCompanyRepository.create({
         user: { id: caller.id },
         company,
-        status: true,
+        isActive: true,
       }),
     );
 
@@ -123,7 +123,7 @@ export class CompanyService {
     const memberships = await this.userCompanyRepository.find({
       where: {
         company: { id: companyId },
-        status: true,
+        isActive: true,
       },
       relations: { user: true },
       order: { user: { name: 'ASC' } },

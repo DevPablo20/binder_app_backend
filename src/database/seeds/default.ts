@@ -73,12 +73,12 @@ async function run() {
       userCompany = userCompanyRepository.create({
         user,
         company,
-        status: true,
+        isActive: true,
       });
       await userCompanyRepository.save(userCompany);
       console.log(`[seed] Usuario vinculado a empresa: ${SEED_COMPANY_NAME}`);
     } else {
-      userCompany.status = true;
+      userCompany.isActive = true;
       await userCompanyRepository.save(userCompany);
       console.log(
         `[seed] Usuario ja vinculado a empresa: ${SEED_COMPANY_NAME}`,
