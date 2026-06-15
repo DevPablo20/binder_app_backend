@@ -7,10 +7,11 @@ import { UserSignature } from 'src/auth/userSignature.type';
 import { Role } from 'src/common/role.enum';
 import { hasMinRole } from 'src/common/role.util';
 import {
+  BulkUpdateCompaniesDto,
   CompanyDetailDto,
   CompanySummaryDto,
+  CompanyWithUsersDto,
   CreateCompanyDto,
-  UpdateCompanyDto,
 } from './company.dto';
 import { UserSummaryDto } from 'src/user/user.dto';
 
@@ -23,27 +24,49 @@ export class CompanyService {
     private readonly userCompanyRepository: Repository<UserCompany>,
   ) {}
 
-  async findAll(caller: UserSignature): Promise<CompanySummaryDto[]> {
+  async findMe(caller: UserSignature): Promise<CompanySummaryDto[]> {
+    const memberships = await this.userCompanyRepository.find({
+      where: {
+        user: { id: caller.id },
+        isActive: true,
+        company: { isActive: true },
+      },
+      relations: { company: true },
+      order: { company: { name: 'ASC' } },
+    });
+
+    return memberships.map((membership) =>
+      this.toSummaryDto(membership.company),
+    );
+  }
+
+  async findAll(
+    caller: UserSignature,
+  ): Promise<CompanySummaryDto[] | CompanyWithUsersDto[]> {
+    if (caller.role === Role.Viewer) {
+      return this.findMe(caller);
+    }
+
+    if (caller.role === Role.Superadmin) {
+      const companies = await this.companyRepository.find({
+        relations: { userCompanies: { user: true } },
+        order: { name: 'ASC' },
+      });
+
+      return companies.map((company) => this.toDetailWithUsersDto(company));
+    }
+
     if (caller.companyIds.length === 0) {
       return [];
     }
 
     const companies = await this.companyRepository.find({
-      where: { id: In(caller.companyIds), isActive: true },
+      where: { id: In(caller.companyIds) },
+      relations: { userCompanies: { user: true } },
       order: { name: 'ASC' },
     });
 
-    return companies.map((company) => this.toSummaryDto(company));
-  }
-
-  async findAllForAdmin(caller: UserSignature): Promise<CompanyDetailDto[]> {
-    this.assertSuperadmin(caller.role, 'listar todas as empresas');
-
-    const companies = await this.companyRepository.find({
-      order: { name: 'ASC' },
-    });
-
-    return companies.map((company) => this.toDetailDto(company));
+    return companies.map((company) => this.toDetailWithUsersDto(company));
   }
 
   async findOne(id: string, caller: UserSignature): Promise<CompanyDetailDto> {
@@ -88,29 +111,39 @@ export class CompanyService {
     return this.toDetailDto(company);
   }
 
-  async update(
-    id: string,
-    dto: UpdateCompanyDto,
+  async updateMany(
+    dto: BulkUpdateCompaniesDto,
     caller: UserSignature,
-  ): Promise<CompanyDetailDto> {
+  ): Promise<CompanyDetailDto[]> {
     this.assertSuperadmin(caller.role, 'editar empresas');
 
-    const company = await this.companyRepository.findOne({ where: { id } });
-    if (!company) {
+    const ids = dto.companies.map((item) => item.id);
+    const companies = await this.companyRepository.find({
+      where: { id: In(ids) },
+    });
+
+    if (companies.length !== ids.length) {
       throw new HttpException('Empresa não encontrada', HttpStatus.NOT_FOUND);
     }
 
-    if (dto.name !== undefined) company.name = dto.name;
-    if (dto.description !== undefined) company.description = dto.description;
-    if (dto.isActive !== undefined) company.isActive = dto.isActive;
+    const companiesById = new Map(companies.map((company) => [company.id, company]));
+
+    for (const item of dto.companies) {
+      const company = companiesById.get(item.id)!;
+      if (item.name !== undefined) company.name = item.name;
+      if (item.description !== undefined) company.description = item.description;
+      if (item.isActive !== undefined) company.isActive = item.isActive;
+    }
 
     try {
-      await this.companyRepository.save(company);
+      const updated = await this.companyRepository.manager.transaction(
+        async (manager) => manager.save(Company, [...companiesById.values()]),
+      );
+
+      return updated.map((company) => this.toDetailDto(company));
     } catch {
       throw new HttpException('Nome de empresa já existe', HttpStatus.CONFLICT);
     }
-
-    return this.toDetailDto(company);
   }
 
   async findUsersByCompany(
@@ -129,15 +162,7 @@ export class CompanyService {
       order: { user: { name: 'ASC' } },
     });
 
-    return memberships
-      .filter((uc) => uc.user?.isActive)
-      .map((uc) => ({
-        id: uc.user.id,
-        name: uc.user.name,
-        email: uc.user.email,
-        role: uc.user.role,
-        isActive: uc.user.isActive,
-      }));
+    return this.mapActiveUsers(memberships);
   }
 
   private assertCompanyAccess(companyId: string, caller: UserSignature): void {
@@ -167,6 +192,19 @@ export class CompanyService {
     }
   }
 
+  private mapActiveUsers(userCompanies: UserCompany[]): UserSummaryDto[] {
+    return userCompanies
+      .filter((uc) => uc.isActive && uc.user?.isActive)
+      .map((uc) => ({
+        id: uc.user.id,
+        name: uc.user.name,
+        email: uc.user.email,
+        role: uc.user.role,
+        isActive: uc.user.isActive,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+
   private toSummaryDto(company: Company): CompanySummaryDto {
     return {
       id: company.id,
@@ -181,6 +219,13 @@ export class CompanyService {
       description: company.description,
       createdAt: company.createdAt,
       updatedAt: company.updatedAt,
+    };
+  }
+
+  private toDetailWithUsersDto(company: Company): CompanyWithUsersDto {
+    return {
+      ...this.toDetailDto(company),
+      users: this.mapActiveUsers(company.userCompanies ?? []),
     };
   }
 }

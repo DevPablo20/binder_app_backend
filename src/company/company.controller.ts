@@ -14,10 +14,11 @@ import type { UserSignature } from 'src/auth/userSignature.type';
 import { Private } from 'src/auth/decorators/private.decorator';
 import { Role } from 'src/common/role.enum';
 import {
+  BulkUpdateCompaniesDto,
   CompanyDetailDto,
   CompanySummaryDto,
+  CompanyWithUsersDto,
   CreateCompanyDto,
-  UpdateCompanyDto,
 } from './company.dto';
 import { UserSummaryDto } from 'src/user/user.dto';
 
@@ -27,27 +28,26 @@ import { UserSummaryDto } from 'src/user/user.dto';
 export class CompanyController {
   constructor(private readonly companyService: CompanyService) {}
 
-  @Get()
+  @Get('me')
   @ApiOperation({
     summary: 'Minhas empresas',
     description:
-      'Lista as empresas ativas às quais o usuário autenticado tem acesso',
+      'Lista as empresas ativas às quais o usuário autenticado tem acesso via userCompanies',
   })
-  findAll(@CurrentUser() user: UserSignature): Promise<CompanySummaryDto[]> {
-    return this.companyService.findAll(user);
+  findMe(@CurrentUser() user: UserSignature): Promise<CompanySummaryDto[]> {
+    return this.companyService.findMe(user);
   }
 
-  @Private(Role.Superadmin)
-  @Get('admin/all')
+  @Get()
   @ApiOperation({
-    summary: 'Listar todas as empresas',
+    summary: 'Listar empresas',
     description:
-      'Lista todas as empresas (ativas e inativas). Apenas Superadmin.',
+      'Viewer: mesmas empresas de GET /company/me. Editor: empresas vinculadas com usuários. Superadmin: todas as empresas com usuários.',
   })
-  findAllForAdmin(
+  findAll(
     @CurrentUser() user: UserSignature,
-  ): Promise<CompanyDetailDto[]> {
-    return this.companyService.findAllForAdmin(user);
+  ): Promise<CompanySummaryDto[] | CompanyWithUsersDto[]> {
+    return this.companyService.findAll(user);
   }
 
   @Private(Role.Superadmin)
@@ -62,6 +62,20 @@ export class CompanyController {
     @CurrentUser() user: UserSignature,
   ): Promise<CompanyDetailDto> {
     return this.companyService.create(dto, user);
+  }
+
+  @Private(Role.Superadmin)
+  @Patch()
+  @ApiOperation({
+    summary: 'Editar empresas',
+    description:
+      'Atualiza uma ou mais empresas em lote. Apenas Superadmin.',
+  })
+  updateMany(
+    @Body() dto: BulkUpdateCompaniesDto,
+    @CurrentUser() user: UserSignature,
+  ): Promise<CompanyDetailDto[]> {
+    return this.companyService.updateMany(dto, user);
   }
 
   @Private(Role.Editor, Role.Superadmin)
@@ -89,19 +103,5 @@ export class CompanyController {
     @CurrentUser() user: UserSignature,
   ): Promise<CompanyDetailDto> {
     return this.companyService.findOne(id, user);
-  }
-
-  @Private(Role.Superadmin)
-  @Patch(':id')
-  @ApiOperation({
-    summary: 'Editar empresa',
-    description: 'Atualiza dados de uma empresa. Apenas Superadmin.',
-  })
-  update(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: UpdateCompanyDto,
-    @CurrentUser() user: UserSignature,
-  ): Promise<CompanyDetailDto> {
-    return this.companyService.update(id, dto, user);
   }
 }

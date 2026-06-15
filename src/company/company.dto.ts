@@ -1,11 +1,16 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 import {
+  IsArray,
   IsBoolean,
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsUUID,
   MaxLength,
+  ValidateNested,
 } from 'class-validator';
+import { UserSummaryDto } from 'src/user/user.dto';
 
 export class CompanySummaryDto {
   @ApiProperty()
@@ -27,6 +32,11 @@ export class CompanyDetailDto extends CompanySummaryDto {
 
   @ApiProperty()
   updatedAt: Date;
+}
+
+export class CompanyWithUsersDto extends CompanyDetailDto {
+  @ApiProperty({ type: [UserSummaryDto] })
+  users: UserSummaryDto[];
 }
 
 export class CreateCompanyDto {
@@ -65,4 +75,18 @@ export class UpdateCompanyDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+}
+
+export class UpdateCompanyItemDto extends UpdateCompanyDto {
+  @ApiProperty()
+  @IsUUID()
+  id: string;
+}
+
+export class BulkUpdateCompaniesDto {
+  @ApiProperty({ type: [UpdateCompanyItemDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => UpdateCompanyItemDto)
+  companies: UpdateCompanyItemDto[];
 }
