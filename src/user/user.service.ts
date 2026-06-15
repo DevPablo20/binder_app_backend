@@ -136,7 +136,7 @@ export class UserService {
       user.userCompanies?.some(
         (uc) =>
           uc.status &&
-          uc.company?.status &&
+          uc.company?.isActive &&
           callerCompanyIds.has(uc.company.id),
       ) ?? false
     );
@@ -170,13 +170,13 @@ export class UserService {
         ?.filter(
           (uc) =>
             uc.status &&
-            uc.company?.status &&
+            uc.company?.isActive &&
             visibleCompanyIds.has(uc.company.id),
         )
         .map((uc) => ({
           id: uc.company.id,
           name: uc.company.name,
-          status: uc.company.status,
+          isActive: uc.company.isActive,
         })) ?? [];
 
     return {

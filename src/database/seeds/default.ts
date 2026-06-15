@@ -17,9 +17,9 @@ async function run() {
     const companyRepository = dataSource.getRepository(Company);
     const userCompanyRepository = dataSource.getRepository(UserCompany);
 
-    const email = process.env.SEED_USER_EMAIL ?? 'admin@admin.com';
+    const email = process.env.SEED_USER_EMAIL ?? 'pablo.jaber@binder.com.br';
     const plainPassword = process.env.SEED_USER_PASSWORD ?? 'Admin@123';
-    const name = process.env.SEED_USER_NAME ?? 'Admin Seed';
+    const name = process.env.SEED_USER_NAME ?? 'Pablo Jaber';
 
     const password = await hash(plainPassword, 10);
 
@@ -51,13 +51,13 @@ async function run() {
     if (!company) {
       company = companyRepository.create({
         name: SEED_COMPANY_NAME,
-        status: true,
+        isActive: true,
         description: SEED_COMPANY_DESCRIPTION,
       });
       await companyRepository.save(company);
       console.log(`[seed] Empresa criada: ${SEED_COMPANY_NAME}`);
     } else {
-      company.status = true;
+      company.isActive = true;
       company.description = SEED_COMPANY_DESCRIPTION;
       await companyRepository.save(company);
       console.log(

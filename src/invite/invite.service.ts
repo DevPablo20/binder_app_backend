@@ -279,7 +279,7 @@ export class InviteService {
       );
     }
 
-    const inactive = companies.filter((c) => !c.status);
+    const inactive = companies.filter((c) => !c.isActive);
     if (inactive.length > 0) {
       throw new HttpException(
         'Não é possível convidar para empresas inativas',
@@ -377,7 +377,7 @@ export class InviteService {
     return {
       id: company.id,
       name: company.name,
-      status: company.status,
+      isActive: company.isActive,
     };
   }
 

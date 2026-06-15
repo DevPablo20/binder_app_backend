@@ -15,7 +15,7 @@ export class CompanySummaryDto {
   name: string;
 
   @ApiProperty()
-  status: boolean;
+  isActive: boolean;
 }
 
 export class CompanyDetailDto extends CompanySummaryDto {
@@ -44,7 +44,7 @@ export class CreateCompanyDto {
   @ApiPropertyOptional({ default: true })
   @IsOptional()
   @IsBoolean()
-  status?: boolean;
+  isActive?: boolean;
 }
 
 export class UpdateCompanyDto {
@@ -64,5 +64,5 @@ export class UpdateCompanyDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsBoolean()
-  status?: boolean;
+  isActive?: boolean;
 }

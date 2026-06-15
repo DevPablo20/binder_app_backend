@@ -16,8 +16,8 @@ export class Company {
   @Column({ name: 'name', type: 'character varying', unique: true })
   name: string;
 
-  @Column({ name: 'status', type: 'boolean', default: true })
-  status: boolean;
+  @Column({ name: 'is_active', type: 'boolean', default: true })
+  isActive: boolean;
 
   @Column({ name: 'description', type: 'character varying' })
   description: string;

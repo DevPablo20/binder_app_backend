@@ -29,7 +29,7 @@ export class CompanyService {
     }
 
     const companies = await this.companyRepository.find({
-      where: { id: In(caller.companyIds), status: true },
+      where: { id: In(caller.companyIds), isActive: true },
       order: { name: 'ASC' },
     });
 
@@ -68,7 +68,7 @@ export class CompanyService {
     const company = this.companyRepository.create({
       name: dto.name,
       description: dto.description,
-      status: dto.status ?? true,
+      isActive: dto.isActive ?? true,
     });
 
     try {
@@ -102,7 +102,7 @@ export class CompanyService {
 
     if (dto.name !== undefined) company.name = dto.name;
     if (dto.description !== undefined) company.description = dto.description;
-    if (dto.status !== undefined) company.status = dto.status;
+    if (dto.isActive !== undefined) company.isActive = dto.isActive;
 
     try {
       await this.companyRepository.save(company);
@@ -171,7 +171,7 @@ export class CompanyService {
     return {
       id: company.id,
       name: company.name,
-      status: company.status,
+      isActive: company.isActive,
     };
   }
 

@@ -98,19 +98,6 @@ src/
 - `Role` enum lives in `src/common/role.enum.ts` — not in `auth/`
 - Public routes: `POST /auth/login`, `POST /auth/logout`, `POST /auth/password/forgot`, `POST /auth/password/reset`
 
-### Password reset
-
-`AuthService` owns the flow; `MailService` sends the email. No public mail routes.
-
-| Route | DTO | Behavior |
-|-------|-----|----------|
-| `POST /auth/password/forgot` | `ForgottenPasswordDTO` (`email`) | Lowercase email, reject missing/inactive user (403), `repository.update()` UUID token + 15 min expiry on `User`, call `sendPasswordResetEmail()` |
-| `POST /auth/password/reset` | `ResetPasswordDTO` (`token`, `password`) | Validate token + non-expired `passwordResetExpires`, bcrypt hash, clear reset columns |
-
-- Success responses: `Email de recuperação enviado`, `Senha redefinida com sucesso`
-- Tests: `src/auth/auth.service.spec.ts`
-- User columns: `password_reset_token`, `password_reset_expires` on `user.entity.ts`
-
 ## Cross-Module Wiring
 
 - `AuthModule` imports `MailModule` to send password-reset emails from `AuthService`
