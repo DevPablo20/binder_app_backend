@@ -8,11 +8,12 @@ import { Role } from 'src/common/role.enum';
 import { hasMinRole } from 'src/common/role.util';
 import {
   MeResponseDto,
-  RevokeUserCompanyResponseDto,
   UserDetailDto,
   UserSummaryDto,
+  UserWithCompaniesDto,
 } from './user.dto';
 import { CompanySummaryDto } from 'src/company/company.dto';
+import { CompanyWithMembershipDto } from 'src/user-company/user-company.dto';
 
 @Injectable()
 export class UserService {
@@ -30,8 +31,20 @@ export class UserService {
     return this.toDetailDto(user, new Set(caller.companyIds));
   }
 
-  async findAll(caller: UserSignature): Promise<UserSummaryDto[]> {
+  async findAll(
+    caller: UserSignature,
+  ): Promise<UserSummaryDto[] | UserWithCompaniesDto[]> {
     this.assertMinRole(caller.role, Role.Editor, 'listar usuários');
+
+    if (caller.role === Role.Superadmin) {
+      // Superadmin sees all users, with their active company memberships.
+      const users = await this.userRepository.find({
+        relations: { userCompanies: { company: true } },
+        order: { name: 'ASC' },
+      });
+
+      return users.map((user) => this.toWithCompaniesDto(user));
+    }
 
     if (caller.companyIds.length === 0) {
       return [];
@@ -76,54 +89,6 @@ export class UserService {
     return this.toDetailDto(user, callerCompanyIds);
   }
 
-  async revokeCompanyAccess(
-    userId: string,
-    companyId: string,
-    caller: UserSignature,
-  ): Promise<RevokeUserCompanyResponseDto> {
-    this.assertMinRole(caller.role, Role.Editor, 'revogar acesso de usuário');
-
-    if (caller.id === userId) {
-      throw new HttpException(
-        'Não é permitido revogar o próprio acesso',
-        HttpStatus.FORBIDDEN,
-      );
-    }
-
-    if (
-      caller.role !== Role.Superadmin &&
-      !caller.companyIds.includes(companyId)
-    ) {
-      throw new HttpException(
-        'Sem permissão para revogar acesso nesta empresa',
-        HttpStatus.FORBIDDEN,
-      );
-    }
-
-    const membership = await this.userCompanyRepository.findOne({
-      where: {
-        user: { id: userId },
-        company: { id: companyId },
-      },
-    });
-
-    if (!membership) {
-      throw new HttpException(
-        'Vínculo usuário-empresa não encontrado',
-        HttpStatus.NOT_FOUND,
-      );
-    }
-
-    if (!membership.isActive) {
-      return { userId, companyId, isActive: false };
-    }
-
-    membership.isActive = false;
-    await this.userCompanyRepository.save(membership);
-
-    return { userId, companyId, isActive: false };
-  }
-
   private async findUserWithCompanies(id: string): Promise<User | null> {
     return this.userRepository.findOne({
       where: { id },
@@ -158,6 +123,25 @@ export class UserService {
       email: user.email,
       role: user.role,
       isActive: user.isActive,
+    };
+  }
+
+  private toWithCompaniesDto(user: User): UserWithCompaniesDto {
+    const companies: CompanyWithMembershipDto[] = (
+      user.userCompanies ?? []
+    )
+      .filter((uc) => uc.isActive && uc.company)
+      .map((uc) => ({
+        id: uc.company.id,
+        membershipId: uc.id,
+        name: uc.company.name,
+        isActive: uc.company.isActive,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    return {
+      ...this.toSummaryDto(user),
+      companies,
     };
   }
 

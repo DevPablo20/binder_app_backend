@@ -54,6 +54,11 @@ src/
 │   ├── user.controller.ts
 │   ├── user.service.ts
 │   └── user.entity.ts
+├── user-company/
+│   ├── user-company.module.ts    # service-only; exports UserCompanyService
+│   ├── user-company.service.ts   # grant/revoke/sync memberships (Superadmin)
+│   ├── user-company.dto.ts
+│   └── user-company.entity.ts
 ├── company/
 │   ├── company.module.ts
 │   ├── company.controller.ts
@@ -78,8 +83,9 @@ src/
 |--------|---------------------------|---------|
 | `DatabaseModule` | Yes (first) | `forRootAsync` via `buildTypeOrmConfig()` |
 | `AuthModule` | Yes | `forFeature([User, UserCompany])`; imports `MailModule` |
-| `UserModule` | Yes | — (add `forFeature([User])` when implementing CRUD) |
-| `CompanyModule` | Yes | — (add `forFeature([Company])` when implementing CRUD) |
+| `UserModule` | Yes | `forFeature([User, UserCompany])`; imports `UserCompanyModule` |
+| `UserCompanyModule` | No (imported by `UserModule`) | `forFeature([UserCompany, User, Company])`; exports `UserCompanyService` only |
+| `CompanyModule` | Yes | `forFeature([Company, UserCompany])` |
 | `MailModule` | Yes | — (service-only; consumed by `AuthModule`) |
 
 ## TypeORM Pattern
@@ -103,6 +109,7 @@ src/
 - `AuthModule` imports `MailModule` to send password-reset emails from `AuthService`
 - `MailModule` exports `MailService` only — no HTTP routes; email is triggered by auth, not by direct mail endpoints
 - Feature modules that need email should import `MailModule` and inject `MailService` — do not instantiate MailerSend outside `mail.service.ts`
+- `UserModule` imports `UserCompanyModule` for membership grant/revoke/sync (`UserCompanyService`)
 
 ## Conventions
 

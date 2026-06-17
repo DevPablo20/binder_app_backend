@@ -125,7 +125,7 @@ erDiagram
 |---|---|
 | **Business role** | Membership / access grant linking a user to a company unit. Controls whether a logged-in user may access that company. |
 | **Source file** | `src/user-company/user-company.entity.ts` |
-| **Module** | Registered in `AuthModule` via `TypeOrmModule.forFeature` |
+| **Module** | `src/user-company/user-company.module.ts` (service-only; imported by `UserModule`) |
 
 **Key fields**
 
@@ -140,6 +140,8 @@ erDiagram
 
 - `src/auth/auth.guard.ts` — filters active memberships into `companyIds`
 - `src/auth/auth.service.ts` — loads memberships on login
+- `src/user-company/user-company.service.ts` — grant, revoke, bulk sync (Superadmin only)
+- `src/user/user.controller.ts` — `PATCH /user/membership/:userCompanyId/revoke`, `PUT /user/:id/companies`
 - `src/database/seeds/default.ts` — creates admin ↔ company link with `status: true`
 
 **Relationships**
@@ -149,7 +151,7 @@ erDiagram
 | User | ManyToOne | UserCompany | Each membership belongs to one user |
 | Company | ManyToOne | UserCompany | Each membership targets one company |
 
-**Access revocation:** set `status=false` on the row. The user stays logged in; on the next request `AuthGuard` reloads memberships and excludes the revoked company from `companyIds`.
+**Access revocation:** set `status=false` on the row (via `UserCompanyService.revokeById` using the membership row PK). Grant/revoke/sync require Superadmin. The user stays logged in; on the next request `AuthGuard` reloads memberships and excludes the revoked company from `companyIds`.
 
 ---
 
