@@ -17,6 +17,7 @@ import {
   CreateInviteDto,
   InviteDetailDto,
   InviteMessageResponseDto,
+  InvitePublicDetailsDto,
   InviteSummaryDto,
   RefuseInviteDto,
 } from './invite.dto';
@@ -166,6 +167,22 @@ export class InviteService {
     } finally {
       await queryRunner.release();
     }
+  }
+
+  async findPublicDetailsByToken(token: string): Promise<InvitePublicDetailsDto> {
+    const invite = await this.findInviteByToken(token);
+    await this.assertInviteActionable(invite);
+
+    return {
+      email: invite.email,
+      role: invite.role,
+      status: invite.status,
+      expiresAt: invite.expiresAt,
+      inviterName: invite.invitedBy.name,
+      companies: (invite.companies ?? []).map((company) =>
+        this.toCompanySummaryDto(company),
+      ),
+    };
   }
 
   async refuse(dto: RefuseInviteDto): Promise<InviteMessageResponseDto> {

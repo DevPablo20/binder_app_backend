@@ -20,6 +20,7 @@ import {
   CreateInviteDto,
   InviteDetailDto,
   InviteMessageResponseDto,
+  InvitePublicDetailsDto,
   InviteSummaryDto,
   RefuseInviteDto,
 } from './invite.dto';
@@ -51,6 +52,19 @@ export class InviteController {
   })
   refuse(@Body() dto: RefuseInviteDto): Promise<InviteMessageResponseDto> {
     return this.inviteService.refuse(dto);
+  }
+
+  @Public()
+  @Get('token/:token/details')
+  @ApiOperation({
+    summary: 'Detalhes públicos do convite',
+    description:
+      'Retorna informações do convite para exibição antes de aceitar ou recusar. Rota pública.',
+  })
+  findPublicDetails(
+    @Param('token') token: string,
+  ): Promise<InvitePublicDetailsDto> {
+    return this.inviteService.findPublicDetailsByToken(token);
   }
 
   @Private(Role.Editor, Role.Superadmin)

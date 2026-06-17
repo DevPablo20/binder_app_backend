@@ -108,3 +108,23 @@ export class InviteMessageResponseDto {
   @ApiProperty()
   message: string;
 }
+
+export class InvitePublicDetailsDto {
+  @ApiProperty()
+  email: string;
+
+  @ApiProperty({ enum: Role })
+  role: Role;
+
+  @ApiProperty({ enum: InviteStatus })
+  status: InviteStatus;
+
+  @ApiProperty()
+  expiresAt: Date;
+
+  @ApiProperty()
+  inviterName: string;
+
+  @ApiProperty({ type: [CompanySummaryDto] })
+  companies: CompanySummaryDto[];
+}
