@@ -1,15 +1,6 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  ParseUUIDPipe,
-  Patch,
-  Put,
-} from '@nestjs/common';
+import { Controller, Get, Param, ParseUUIDPipe } from '@nestjs/common';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { UserService } from './user.service';
-import { UserCompanyService } from 'src/user-company/user-company.service';
 import { CurrentUser } from 'src/auth/decorators/currentUser.decorator';
 import type { UserSignature } from 'src/auth/userSignature.type';
 import { Private } from 'src/auth/decorators/private.decorator';
@@ -20,19 +11,12 @@ import {
   UserSummaryDto,
   UserWithCompaniesDto,
 } from './user.dto';
-import {
-  SyncUserCompaniesDto,
-  UserCompanyMembershipDto,
-} from 'src/user-company/user-company.dto';
 
 @ApiTags('User')
 @ApiCookieAuth()
 @Controller('user')
 export class UserController {
-  constructor(
-    private readonly userService: UserService,
-    private readonly userCompanyService: UserCompanyService,
-  ) {}
+  constructor(private readonly userService: UserService) {}
 
   @Get('me')
   @ApiOperation({
@@ -55,35 +39,6 @@ export class UserController {
     @CurrentUser() user: UserSignature,
   ): Promise<UserSummaryDto[] | UserWithCompaniesDto[]> {
     return this.userService.findAll(user);
-  }
-
-  @Private(Role.Superadmin)
-  @Patch('membership/:userCompanyId/revoke')
-  @ApiOperation({
-    summary: 'Revogar acesso à empresa',
-    description:
-      'Revoga o vínculo usuário-empresa (soft revoke) pelo ID do vínculo. Apenas Superadmin.',
-  })
-  revokeMembership(
-    @Param('userCompanyId', ParseUUIDPipe) userCompanyId: string,
-    @CurrentUser() user: UserSignature,
-  ): Promise<UserCompanyMembershipDto> {
-    return this.userCompanyService.revokeById(userCompanyId, user);
-  }
-
-  @Private(Role.Superadmin)
-  @Put(':id/companies')
-  @ApiOperation({
-    summary: 'Sincronizar empresas do usuário',
-    description:
-      'Define os vínculos ativos do usuário para corresponder exatamente à lista informada. Apenas Superadmin.',
-  })
-  syncUserCompanies(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: SyncUserCompaniesDto,
-    @CurrentUser() user: UserSignature,
-  ): Promise<UserWithCompaniesDto> {
-    return this.userCompanyService.syncMemberships(id, dto.companyIds, user);
   }
 
   @Get(':id')

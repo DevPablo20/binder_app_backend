@@ -56,6 +56,7 @@ src/
 │   └── user.entity.ts
 ├── user-company/
 │   ├── user-company.module.ts    # service-only; exports UserCompanyService
+│   ├── user-company.controller.ts # PATCH revoke, PUT sync (Superadmin)
 │   ├── user-company.service.ts   # grant/revoke/sync memberships (Superadmin)
 │   ├── user-company.dto.ts
 │   └── user-company.entity.ts
@@ -109,7 +110,7 @@ src/
 - `AuthModule` imports `MailModule` to send password-reset emails from `AuthService`
 - `MailModule` exports `MailService` only — no HTTP routes; email is triggered by auth, not by direct mail endpoints
 - Feature modules that need email should import `MailModule` and inject `MailService` — do not instantiate MailerSend outside `mail.service.ts`
-- `UserModule` imports `UserCompanyModule` for membership grant/revoke/sync (`UserCompanyService`)
+- `UserModule` imports `UserCompanyModule` for membership read projections and `UserCompanyService`
 
 ## Conventions
 

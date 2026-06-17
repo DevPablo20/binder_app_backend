@@ -13,7 +13,7 @@ import {
   CompanyWithUsersDto,
   CreateCompanyDto,
 } from './company.dto';
-import { UserSummaryDto } from 'src/user/user.dto';
+import { UserWithMembershipDto } from 'src/user-company/user-company.dto';
 
 @Injectable()
 export class CompanyService {
@@ -149,7 +149,7 @@ export class CompanyService {
   async findUsersByCompany(
     companyId: string,
     caller: UserSignature,
-  ): Promise<UserSummaryDto[]> {
+  ): Promise<UserWithMembershipDto[]> {
     this.assertMinRole(caller.role, Role.Editor, 'listar usuários da empresa');
     this.assertCompanyAccess(companyId, caller);
 
@@ -192,11 +192,14 @@ export class CompanyService {
     }
   }
 
-  private mapActiveUsers(userCompanies: UserCompany[]): UserSummaryDto[] {
+  private mapActiveUsers(
+    userCompanies: UserCompany[],
+  ): UserWithMembershipDto[] {
     return userCompanies
       .filter((uc) => uc.isActive && uc.user?.isActive)
       .map((uc) => ({
         id: uc.user.id,
+        membershipId: uc.id,
         name: uc.user.name,
         email: uc.user.email,
         role: uc.user.role,

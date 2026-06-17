@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsArray, IsUUID } from 'class-validator';
+import { Role } from 'src/common/role.enum';
 
 export class UserCompanyMembershipDto {
   @ApiProperty()
@@ -10,6 +11,26 @@ export class UserCompanyMembershipDto {
 
   @ApiProperty()
   companyId: string;
+
+  @ApiProperty()
+  isActive: boolean;
+}
+
+export class UserWithMembershipDto {
+  @ApiProperty({ description: 'User UUID' })
+  id: string;
+
+  @ApiProperty({ description: 'UserCompany row UUID — used for revoke' })
+  membershipId: string;
+
+  @ApiProperty()
+  name: string;
+
+  @ApiProperty()
+  email: string;
+
+  @ApiProperty({ enum: Role })
+  role: Role;
 
   @ApiProperty()
   isActive: boolean;

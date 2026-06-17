@@ -10,7 +10,7 @@ import {
   MaxLength,
   ValidateNested,
 } from 'class-validator';
-import { UserSummaryDto } from 'src/user/user.dto';
+import { UserWithMembershipDto } from 'src/user-company/user-company.dto';
 
 export class CompanySummaryDto {
   @ApiProperty()
@@ -35,8 +35,8 @@ export class CompanyDetailDto extends CompanySummaryDto {
 }
 
 export class CompanyWithUsersDto extends CompanyDetailDto {
-  @ApiProperty({ type: [UserSummaryDto] })
-  users: UserSummaryDto[];
+  @ApiProperty({ type: [UserWithMembershipDto] })
+  users: UserWithMembershipDto[];
 }
 
 export class CreateCompanyDto {

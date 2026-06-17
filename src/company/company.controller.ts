@@ -20,7 +20,7 @@ import {
   CompanyWithUsersDto,
   CreateCompanyDto,
 } from './company.dto';
-import { UserSummaryDto } from 'src/user/user.dto';
+import { UserWithMembershipDto } from 'src/user-company/user-company.dto';
 
 @ApiTags('Company')
 @ApiCookieAuth()
@@ -88,7 +88,7 @@ export class CompanyController {
   findUsers(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: UserSignature,
-  ): Promise<UserSummaryDto[]> {
+  ): Promise<UserWithMembershipDto[]> {
     return this.companyService.findUsersByCompany(id, user);
   }
 

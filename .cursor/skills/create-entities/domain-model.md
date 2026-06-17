@@ -141,7 +141,7 @@ erDiagram
 - `src/auth/auth.guard.ts` — filters active memberships into `companyIds`
 - `src/auth/auth.service.ts` — loads memberships on login
 - `src/user-company/user-company.service.ts` — grant, revoke, bulk sync (Superadmin only)
-- `src/user/user.controller.ts` — `PATCH /user/membership/:userCompanyId/revoke`, `PUT /user/:id/companies`
+- `src/user-company/user-company.controller.ts` — `PATCH /user-company/:id/revoke`, `PUT /user-company/user/:userId/sync`
 - `src/database/seeds/default.ts` — creates admin ↔ company link with `status: true`
 
 **Relationships**
