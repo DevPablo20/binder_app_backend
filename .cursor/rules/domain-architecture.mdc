@@ -30,6 +30,7 @@ flowchart TB
     subgraph media ["Media Layer (catalog)"]
         Platform
         Channel
+        BuyingType
         Format
         SubFormat
         Grouping
@@ -47,7 +48,9 @@ flowchart TB
 
     Company --> Client --> Campaign
     Platform --> Channel
+    Channel --> BuyingType
     Format --> SubFormat
+    Campaign --> Grouping
     Grouping --> SubGrouping
 
     Client --> PlatformAccount
@@ -65,9 +68,9 @@ flowchart TB
 | Layer | Responsibility | Entities | Status |
 |-------|----------------|----------|--------|
 | **Access** | Who can use the system; company-scoped permissions and onboarding | `User`, `Company`, `UserCompany`, `Invite` | Implemented |
-| **Business** | Organizational spine: contracts and initiatives under a company | `Client`, `Campaign` | Planned |
-| **Media** | Reference catalog of internal vocabulary for classifying ads (defines *possible* labels, not instance mappings) | `Platform`, `Channel`, `Format`, `SubFormat`, `Grouping`, `SubGrouping` | Planned |
-| **Bridge** | Match lake rows (platform-native IDs from ETL) to Binder meaning | `PlatformAccount`, `PlatformObjectMap` | Planned |
+| **Business** | Organizational spine: contracts and initiatives under a company | `Client`, `Campaign` | Implemented (entities only) |
+| **Media** | Reference catalog of internal vocabulary for classifying ads (defines *possible* labels, not instance mappings) | `Platform`, `Channel`, `BuyingType`, `Format`, `SubFormat`, `Grouping`, `SubGrouping` | Implemented (entities only) |
+| **Bridge** | Match lake rows (platform-native IDs from ETL) to Binder meaning | `PlatformAccount`, `PlatformObjectMap` | Implemented (entities only) |
 
 ### Access Layer
 
@@ -84,14 +87,16 @@ flowchart TB
 ### Media Layer
 
 - Answers: *what categories exist for describing where and how ads ran, and what strategy they carry?*
-- Taxonomy chains: `Platform → Channel`; `Format → SubFormat`; `Grouping → SubGrouping`.
-- Defines vocabulary only. Media alone does **not** know which ad gets which label — Bridge applies labels to platform objects.
+- **Global catalogs:** `Platform → Channel ↔ BuyingType`; `Format → SubFormat`
+- **Campaign-scoped:** `Grouping → SubGrouping` (strategic dimensions belong to a Binder campaign, not a company)
+- `BuyingType` is a separate global entity (CPC, CPM, CPV, etc.); `Channel` links to many via `channel_buying_type`
+- Defines vocabulary only. Media alone does **not** know which ad gets which label — Bridge applies labels to platform objects
 
 ### Bridge Layer
 
 - Answers: *which lake row maps to which Binder campaign and optional media/strategic labels?*
 - `PlatformAccount`: platform + client + `external_account_id` (IDs are unique per account).
-- `PlatformObjectMap`: `object_type` (`campaign` | `ad_set` | `ad`) + `external_id` → `binder_campaign_id`; optional FKs to `Channel`, `Format`, `SubFormat`; subgroupings via junction.
+- `PlatformObjectMap`: `object_type` (`campaign` | `ad_set` | `ad`) + `external_id` → `binder_campaign_id`; optional FKs to `Channel`, `BuyingType`, `Format`, `SubFormat`; subgroupings via junction.
 - Lake join key: `(platform_account, object_type, external_id)`. Resolve most-specific level first: ad → ad_set → campaign.
 - Must **not** redefine business or taxonomy rules — only **reference** them via FKs.
 

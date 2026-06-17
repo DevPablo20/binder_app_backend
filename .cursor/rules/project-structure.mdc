@@ -5,7 +5,7 @@ alwaysApply: true
 
 # Project Structure
 
-NestJS 11 + TypeORM + PostgreSQL API for BI binder parametrization — the semantic brain of a marketing data lake. See [domain-architecture.mdc](mdc:.cursor/rules/domain-architecture.mdc) for layered domain design (Access, Business, Media, Bridge).
+NestJS 11 + TypeORM + PostgreSQL API for BI binder app — the semantic brain of a marketing data lake. See [domain-architecture.mdc](mdc:.cursor/rules/domain-architecture.mdc) for layered domain design (Access, Business, Media, Bridge).
 
 ## Root Layout
 
@@ -65,6 +65,34 @@ src/
 │   ├── company.controller.ts
 │   ├── company.service.ts
 │   └── company.entity.ts
+├── client/
+│   ├── client.module.ts          # entities only; no routes yet
+│   └── client.entity.ts          # Business layer; FK to Company
+├── campaign/
+│   ├── campaign.module.ts        # entities only; no routes yet
+│   └── campaign.entity.ts        # Business layer; FK to Client
+├── platform/
+│   ├── platform.module.ts        # entities only; no routes yet
+│   ├── platform.entity.ts        # Media layer (global)
+│   ├── channel.entity.ts         # Media layer; FK to Platform
+│   └── buying-type.entity.ts     # Media layer (global); M:N via channel_buying_type
+├── format/
+│   ├── format.module.ts          # entities only; no routes yet
+│   ├── format.entity.ts          # Media layer (global)
+│   └── sub-format.entity.ts      # Media layer; FK to Format
+├── grouping/
+│   ├── grouping.module.ts        # entities only; no routes yet
+│   ├── grouping.entity.ts        # Media layer; FK to Campaign
+│   └── sub-grouping.entity.ts    # Media layer; FK to Grouping
+├── bridge/
+│   ├── bridge.module.ts            # entities only; no routes yet
+│   ├── platform-account.entity.ts  # Bridge; FK to Client + Platform
+│   └── platform-object-map.entity.ts # Bridge; ETL object → Campaign + media FKs
+├── invite/
+│   ├── invite.module.ts
+│   ├── invite.controller.ts
+│   ├── invite.service.ts
+│   └── invite.entity.ts
 ├── mail/
 │   ├── mail.module.ts          # exports MailService only (no controller)
 │   └── mail.service.ts         # MailerSend: sendMail, sendInviteEmail, sendPasswordResetEmail
@@ -75,7 +103,8 @@ src/
 │   ├── migrations/
 │   └── seeds/default.ts
 └── common/
-    └── role.enum.ts            # Superadmin, Editor, Viewer
+    ├── role.enum.ts            # Superadmin, Editor, Viewer
+    └── platform-object-type.enum.ts  # campaign, ad_set, ad (Bridge ETL join)
 ```
 
 ## Active Modules
@@ -87,6 +116,13 @@ src/
 | `UserModule` | Yes | `forFeature([User, UserCompany])`; imports `UserCompanyModule` |
 | `UserCompanyModule` | No (imported by `UserModule`) | `forFeature([UserCompany, User, Company])`; exports `UserCompanyService` only |
 | `CompanyModule` | Yes | `forFeature([Company, UserCompany])` |
+| `InviteModule` | Yes | `forFeature([Invite, User, Company])` |
+| `ClientModule` | Yes | `forFeature([Client, Company])` — entities only, no routes |
+| `CampaignModule` | Yes | `forFeature([Campaign, Client])` — entities only, no routes |
+| `PlatformModule` | Yes | `forFeature([Platform, Channel, BuyingType])` — `channel_buying_type` junction |
+| `FormatModule` | Yes | `forFeature([Format, SubFormat])` — entities only, no routes |
+| `GroupingModule` | Yes | `forFeature([Grouping, SubGrouping, Campaign])` — entities only, no routes |
+| `BridgeModule` | Yes | `forFeature([PlatformAccount, PlatformObjectMap, ...])` — `platform_object_map_sub_grouping` junction |
 | `MailModule` | Yes | — (service-only; consumed by `AuthModule`) |
 
 ## TypeORM Pattern

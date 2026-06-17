@@ -169,7 +169,9 @@ export class InviteService {
     }
   }
 
-  async findPublicDetailsByToken(token: string): Promise<InvitePublicDetailsDto> {
+  async findPublicDetailsByToken(
+    token: string,
+  ): Promise<InvitePublicDetailsDto> {
     const invite = await this.findInviteByToken(token);
     await this.assertInviteActionable(invite);
 

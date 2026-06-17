@@ -127,9 +127,7 @@ export class UserService {
   }
 
   private toWithCompaniesDto(user: User): UserWithCompaniesDto {
-    const companies: CompanyWithMembershipDto[] = (
-      user.userCompanies ?? []
-    )
+    const companies: CompanyWithMembershipDto[] = (user.userCompanies ?? [])
       .filter((uc) => uc.isActive && uc.company)
       .map((uc) => ({
         id: uc.company.id,

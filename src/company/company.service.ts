@@ -126,12 +126,15 @@ export class CompanyService {
       throw new HttpException('Empresa não encontrada', HttpStatus.NOT_FOUND);
     }
 
-    const companiesById = new Map(companies.map((company) => [company.id, company]));
+    const companiesById = new Map(
+      companies.map((company) => [company.id, company]),
+    );
 
     for (const item of dto.companies) {
       const company = companiesById.get(item.id)!;
       if (item.name !== undefined) company.name = item.name;
-      if (item.description !== undefined) company.description = item.description;
+      if (item.description !== undefined)
+        company.description = item.description;
       if (item.isActive !== undefined) company.isActive = item.isActive;
     }
 

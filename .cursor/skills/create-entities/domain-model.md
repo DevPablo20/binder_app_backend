@@ -6,7 +6,16 @@ Living reference for what each entity means in **binder_app_backend** and why re
 
 ## Domain Overview
 
-The app uses a **multi-company access model**. A single user can belong to multiple company units, and each company unit can have multiple users. Authentication is user-scoped (one login, one JWT); company access is resolved on every request from active `UserCompany` memberships. Revoking access (`status=false` on the link) takes effect on the next request without re-login.
+The app uses a **multi-company access model** and a **layered data-lake brain** architecture:
+
+- **Access layer** — who can use the system (`User`, `Company`, `UserCompany`, `Invite`)
+- **Business layer** — organizational spine (`Company → Client → Campaign`)
+- **Media layer** — reference catalogs for classifying ads (`Platform`, `Channel`, `BuyingType`, `Format`, `SubFormat`, `Grouping`, `SubGrouping`)
+- **Bridge layer** — maps platform-native IDs from ETL to Binder meaning (`PlatformAccount`, `PlatformObjectMap`)
+
+Authentication is user-scoped (one login, one JWT); company access is resolved on every request from active `UserCompany` memberships.
+
+**Catalog scoping:** `Platform`, `Channel`, `BuyingType`, `Format`, `SubFormat` are **global**. `Grouping` / `SubGrouping` are **campaign-scoped** (strategic dimensions vary per campaign).
 
 ## Entity Relationship Diagram
 
@@ -14,39 +23,20 @@ The app uses a **multi-company access model**. A single user can belong to multi
 erDiagram
     User ||--o{ UserCompany : "has memberships"
     Company ||--o{ UserCompany : "has members"
+    Company ||--o{ Client : has
+    Client ||--o{ Campaign : has
     User ||--o{ Invite : "sends"
     Invite }o--o{ Company : "targets via invite_company"
-    User {
-        uuid id PK
-        string email UK
-        string password
-        enum role
-        boolean is_active
-    }
-    Company {
-        uuid id PK
-        string name UK
-        boolean status
-    }
-    UserCompany {
-        uuid id PK
-        uuid user_id FK
-        uuid company_id FK
-        boolean status
-    }
-    Invite {
-        uuid id PK
-        string email
-        string token UK
-        enum role
-        enum status
-        timestamp expires_at
-        uuid invited_by_id FK
-    }
-    invite_company {
-        uuid invite_id FK
-        uuid company_id FK
-    }
+    Platform ||--o{ Channel : has
+    Channel }o--o{ BuyingType : "via channel_buying_type"
+    Format ||--o{ SubFormat : has
+    Campaign ||--o{ Grouping : defines
+    Grouping ||--o{ SubGrouping : has
+    Client ||--o{ PlatformAccount : owns
+    Platform ||--o{ PlatformAccount : scopes
+    PlatformAccount ||--o{ PlatformObjectMap : contains
+    Campaign ||--o{ PlatformObjectMap : targets
+    PlatformObjectMap }o--o{ SubGrouping : "via platform_object_map_sub_grouping"
 ```
 
 ## Entity Catalog
@@ -215,6 +205,317 @@ erDiagram
 
 ---
 
+### Client
+
+| | |
+|---|---|
+| **Business role** | Represents a client account won by a company unit (e.g. Caixa, SERPRO under Binder-DF). |
+| **Source file** | `src/client/client.entity.ts` |
+| **Module** | `src/client/client.module.ts` (entities only, no routes) |
+
+**Key fields**
+
+| Field | Business meaning |
+|-------|------------------|
+| `name` | Client name (unique per company) |
+| `description` | Human-readable description |
+| `isActive` | Whether the client is active |
+| `company` | Owning company unit |
+| `createdAt` / `updatedAt` | Audit timestamps |
+
+**Relationships**
+
+| Related entity | Type | Owning side | Business reason |
+|----------------|------|-------------|-----------------|
+| Company | ManyToOne | Client (`company_id` FK) | Each client belongs to one company |
+| Campaign | OneToMany | Campaign (`client_id` FK) | Client has zero or more campaigns |
+
+---
+
+### Campaign
+
+| | |
+|---|---|
+| **Business role** | Represents a marketing initiative for a client (e.g. Mega da Virada 2025, Always On). |
+| **Source file** | `src/campaign/campaign.entity.ts` |
+| **Module** | `src/campaign/campaign.module.ts` (entities only, no routes) |
+
+**Key fields**
+
+| Field | Business meaning |
+|-------|------------------|
+| `name` | Campaign name (unique per client) |
+| `description` | Human-readable description |
+| `isActive` | Whether the campaign is active |
+| `client` | Parent client account |
+| `createdAt` / `updatedAt` | Audit timestamps |
+
+**Relationships**
+
+| Related entity | Type | Owning side | Business reason |
+|----------------|------|-------------|-----------------|
+| Client | ManyToOne | Campaign (`client_id` FK) | Each campaign belongs to one client |
+| Grouping | OneToMany | Grouping (`campaign_id` FK) | Campaign defines strategic dimension types |
+
+**Must NOT store:** platform-native IDs (`campaign_id`, `ad_set_id`, `ad_id`) — Bridge layer owns those mappings.
+
+---
+
+### Platform
+
+| | |
+|---|---|
+| **Business role** | Global catalog of media platforms where ads run (Google, TikTok, Pinterest, OOH, TV). |
+| **Source file** | `src/platform/platform.entity.ts` |
+| **Module** | `src/platform/platform.module.ts` |
+
+**Key fields**
+
+| Field | Business meaning |
+|-------|------------------|
+| `name` | Platform name (globally unique) |
+| `description` | Human-readable description |
+| `isActive` | Whether the platform entry is active |
+| `createdAt` / `updatedAt` | Audit timestamps |
+
+**Relationships**
+
+| Related entity | Type | Owning side | Business reason |
+|----------------|------|-------------|-----------------|
+| Channel | OneToMany | Channel (`platform_id` FK) | Platform has zero or more channels |
+
+---
+
+### Channel
+
+| | |
+|---|---|
+| **Business role** | Sub-division of a platform (e.g. Google Search, Google YouTube). Defines which buying types are valid. |
+| **Source file** | `src/platform/channel.entity.ts` |
+| **Module** | `src/platform/platform.module.ts` |
+
+**Key fields**
+
+| Field | Business meaning |
+|-------|------------------|
+| `name` | Channel name (unique per platform) |
+| `description` | Human-readable description |
+| `isActive` | Whether the channel entry is active |
+| `platform` | Parent platform |
+| `buyingTypes` | Allowed buying models on this channel |
+| `createdAt` / `updatedAt` | Audit timestamps |
+
+**Relationships**
+
+| Related entity | Type | Owning side | Business reason |
+|----------------|------|-------------|-----------------|
+| Platform | ManyToOne | Channel (`platform_id` FK) | Each channel belongs to one platform |
+| BuyingType | ManyToMany | Channel (`channel_buying_type` junction) | Channel supports one or more buying types (e.g. YouTube → CPM + CPV) |
+
+---
+
+### BuyingType
+
+| | |
+|---|---|
+| **Business role** | Global catalog of buying/pricing models (CPC, CPM, CPV, CPA, CPE, Flat). |
+| **Source file** | `src/platform/buying-type.entity.ts` |
+| **Module** | `src/platform/platform.module.ts` |
+
+**Key fields**
+
+| Field | Business meaning |
+|-------|------------------|
+| `name` | Buying type name (globally unique) |
+| `description` | Human-readable description |
+| `isActive` | Whether the entry is active |
+| `createdAt` / `updatedAt` | Audit timestamps |
+
+**Relationships**
+
+| Related entity | Type | Owning side | Business reason |
+|----------------|------|-------------|-----------------|
+| Channel | ManyToMany | Channel (`channel_buying_type` junction) | Buying type is valid on zero or more channels |
+
+**Note:** Catalog defines what's *possible* on a channel. The actual buying type used on a specific ad is chosen in Bridge (`PlatformObjectMap`).
+
+---
+
+### Format
+
+| | |
+|---|---|
+| **Business role** | Global catalog of creative format types (static, video). |
+| **Source file** | `src/format/format.entity.ts` |
+| **Module** | `src/format/format.module.ts` |
+
+**Key fields**
+
+| Field | Business meaning |
+|-------|------------------|
+| `name` | Format name (globally unique) |
+| `description` | Human-readable description |
+| `isActive` | Whether the entry is active |
+| `createdAt` / `updatedAt` | Audit timestamps |
+
+**Relationships**
+
+| Related entity | Type | Owning side | Business reason |
+|----------------|------|-------------|-----------------|
+| SubFormat | OneToMany | SubFormat (`format_id` FK) | Format has zero or more sub-formats |
+
+---
+
+### SubFormat
+
+| | |
+|---|---|
+| **Business role** | Finer creative specification under a format (carousel, card; 6s GIF, 15s, 30s video). |
+| **Source file** | `src/format/sub-format.entity.ts` |
+| **Module** | `src/format/format.module.ts` |
+
+**Key fields**
+
+| Field | Business meaning |
+|-------|------------------|
+| `name` | Sub-format name (unique per format) |
+| `description` | Human-readable description |
+| `isActive` | Whether the entry is active |
+| `format` | Parent format |
+| `createdAt` / `updatedAt` | Audit timestamps |
+
+**Relationships**
+
+| Related entity | Type | Owning side | Business reason |
+|----------------|------|-------------|-----------------|
+| Format | ManyToOne | SubFormat (`format_id` FK) | Each sub-format belongs to one format |
+
+---
+
+### Grouping
+
+| | |
+|---|---|
+| **Business role** | Campaign-scoped strategic dimension type (Territory, Theme). Options vary per campaign. |
+| **Source file** | `src/grouping/grouping.entity.ts` |
+| **Module** | `src/grouping/grouping.module.ts` |
+
+**Key fields**
+
+| Field | Business meaning |
+|-------|------------------|
+| `name` | Grouping name (unique per campaign) |
+| `description` | Human-readable description |
+| `isActive` | Whether the entry is active |
+| `campaign` | Parent Binder campaign |
+| `createdAt` / `updatedAt` | Audit timestamps |
+
+**Relationships**
+
+| Related entity | Type | Owning side | Business reason |
+|----------------|------|-------------|-----------------|
+| Campaign | ManyToOne | Grouping (`campaign_id` FK) | Strategic dimensions belong to a specific campaign |
+| SubGrouping | OneToMany | SubGrouping (`grouping_id` FK) | Grouping has zero or more values |
+
+---
+
+### SubGrouping
+
+| | |
+|---|---|
+| **Business role** | Value under a campaign grouping (e.g. Territory → Canais, Crédito, Oportunidades e Clientes). |
+| **Source file** | `src/grouping/sub-grouping.entity.ts` |
+| **Module** | `src/grouping/grouping.module.ts` |
+
+**Key fields**
+
+| Field | Business meaning |
+|-------|------------------|
+| `name` | Sub-grouping name (unique per grouping) |
+| `description` | Human-readable description |
+| `isActive` | Whether the entry is active |
+| `grouping` | Parent grouping dimension |
+| `createdAt` / `updatedAt` | Audit timestamps |
+
+**Relationships**
+
+| Related entity | Type | Owning side | Business reason |
+|----------------|------|-------------|-----------------|
+| Grouping | ManyToOne | SubGrouping (`grouping_id` FK) | Each value belongs to one grouping |
+
+---
+
+### PlatformAccount
+
+| | |
+|---|---|
+| **Business role** | Links a client's platform ad account to Binder. ETL `account_id` joins here to resolve client, company, and platform context. |
+| **Source file** | `src/bridge/platform-account.entity.ts` |
+| **Module** | `src/bridge/bridge.module.ts` (entities only, no routes) |
+
+**Key fields**
+
+| Field | Business meaning |
+|-------|------------------|
+| `externalAccountId` | Platform-native account ID from ETL (unique per platform) |
+| `name` | Human-readable label (e.g. "Caixa Google Ads") |
+| `isActive` | Whether this account mapping is active |
+| `client` | Owning client account |
+| `platform` | Which platform catalog applies |
+| `createdAt` / `updatedAt` | Audit timestamps |
+
+**Relationships**
+
+| Related entity | Type | Owning side | Business reason |
+|----------------|------|-------------|-----------------|
+| Client | ManyToOne | PlatformAccount (`client_id` FK) | Account belongs to one client |
+| Platform | ManyToOne | PlatformAccount (`platform_id` FK) | Account runs on one platform |
+| PlatformObjectMap | OneToMany | PlatformObjectMap (`platform_account_id` FK) | Account has zero or more object maps |
+
+**ETL join:** `facts.account_id` → `platform_account.external_account_id` (scoped by platform).
+
+---
+
+### PlatformObjectMap
+
+| | |
+|---|---|
+| **Business role** | Maps one platform object (campaign, ad set, or ad) to a Binder campaign and optional media/strategic labels. Core ETL enrichment row. |
+| **Source file** | `src/bridge/platform-object-map.entity.ts` |
+| **Module** | `src/bridge/bridge.module.ts` |
+
+**Key fields**
+
+| Field | Business meaning |
+|-------|------------------|
+| `objectType` | `campaign`, `ad_set`, or `ad` — which platform hierarchy level |
+| `externalId` | Platform-native ID at that level |
+| `externalName` | Optional platform object name for ops UI |
+| `isActive` | Soft-disable without deleting mapping history |
+| `platformAccount` | Parent account scope |
+| `campaign` | Target Binder campaign (required) |
+| `channel` / `buyingType` / `format` / `subFormat` | Optional media enrichment |
+| `subGroupings` | Optional strategic tags (M:N) |
+| `createdAt` / `updatedAt` | Audit timestamps |
+
+**Relationships**
+
+| Related entity | Type | Owning side | Business reason |
+|----------------|------|-------------|-----------------|
+| PlatformAccount | ManyToOne | PlatformObjectMap (`platform_account_id` FK) | Map scoped to one platform account |
+| Campaign | ManyToOne | PlatformObjectMap (`campaign_id` FK) | Every map targets one Binder campaign |
+| Channel | ManyToOne | PlatformObjectMap (`channel_id` FK) | Optional channel label |
+| BuyingType | ManyToOne | PlatformObjectMap (`buying_type_id` FK) | Optional buying model used |
+| Format | ManyToOne | PlatformObjectMap (`format_id` FK) | Optional creative format |
+| SubFormat | ManyToOne | PlatformObjectMap (`sub_format_id` FK) | Optional sub-format |
+| SubGrouping | ManyToMany | PlatformObjectMap (`platform_object_map_sub_grouping`) | Optional strategic tags |
+
+**ETL join:** match `external_id` + `object_type` + `platform_account_id`. Resolve most-specific level first: ad → ad_set → campaign.
+
+**Enum:** `PlatformObjectType` in `src/common/platform-object-type.enum.ts`.
+
+---
+
 ## Relationship Map
 
 | From | To | Type | Junction / FK | Owning side | Business rationale |
@@ -224,6 +525,18 @@ erDiagram
 | User | Company | ManyToMany (via UserCompany) | `user_company` | UserCompany | Multi-company access with per-link `status` for soft revoke |
 | User | Invite | OneToMany | `invite.invited_by_id` | Invite | User sends zero or more invites |
 | Invite | Company | ManyToMany | `invite_company` | Invite | One invite can target multiple companies in a single flow |
+| Company | Client | OneToMany | `client.company_id` | Client | Company has zero or more client accounts |
+| Client | Campaign | OneToMany | `campaign.client_id` | Campaign | Client has zero or more campaigns |
+| Platform | Channel | OneToMany | `channel.platform_id` | Channel | Platform has zero or more channels |
+| Channel | BuyingType | ManyToMany | `channel_buying_type` | Channel | Channel supports one or more buying types |
+| Format | SubFormat | OneToMany | `sub_format.format_id` | SubFormat | Format has zero or more sub-formats |
+| Campaign | Grouping | OneToMany | `grouping.campaign_id` | Grouping | Campaign defines zero or more strategic dimensions |
+| Grouping | SubGrouping | OneToMany | `sub_grouping.grouping_id` | SubGrouping | Grouping has zero or more values |
+| Client | PlatformAccount | OneToMany | `platform_account.client_id` | PlatformAccount | Client has zero or more platform accounts |
+| Platform | PlatformAccount | OneToMany | `platform_account.platform_id` | PlatformAccount | Platform has zero or more linked accounts |
+| PlatformAccount | PlatformObjectMap | OneToMany | `platform_object_map.platform_account_id` | PlatformObjectMap | Account has zero or more object maps |
+| Campaign | PlatformObjectMap | OneToMany | `platform_object_map.campaign_id` | PlatformObjectMap | Campaign targeted by zero or more maps |
+| PlatformObjectMap | SubGrouping | ManyToMany | `platform_object_map_sub_grouping` | PlatformObjectMap | Map can carry zero or more strategic tags |
 
 **Junction table `user_company`**
 
@@ -238,6 +551,18 @@ erDiagram
 - Columns: `invite_id`, `company_id`
 - `UNIQUE (invite_id, company_id)` — one link per invite–company pair
 - No extra fields on junction; invite metadata lives on `Invite` row
+
+**Junction table `channel_buying_type`**
+
+- Managed by TypeORM `@JoinTable` on `Channel` (inverse on `BuyingType`)
+- Columns: `channel_id`, `buying_type_id`
+- Meaning: which buying models are valid on a channel (catalog only; Bridge picks the actual type per ad)
+
+**Junction table `platform_object_map_sub_grouping`**
+
+- Managed by TypeORM `@JoinTable` on `PlatformObjectMap` (no inverse on `SubGrouping`)
+- Columns: `platform_object_map_id`, `sub_grouping_id`
+- Meaning: strategic tags applied to a specific platform object mapping
 
 ---
 

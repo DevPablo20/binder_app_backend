@@ -68,8 +68,7 @@ export class CompanyController {
   @Patch()
   @ApiOperation({
     summary: 'Editar empresas',
-    description:
-      'Atualiza uma ou mais empresas em lote. Apenas Superadmin.',
+    description: 'Atualiza uma ou mais empresas em lote. Apenas Superadmin.',
   })
   updateMany(
     @Body() dto: BulkUpdateCompaniesDto,
