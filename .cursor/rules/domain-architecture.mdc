@@ -1,0 +1,112 @@
+---
+description: Domain purpose, layered architecture, and separation of concerns for the data lake brain
+alwaysApply: true
+---
+
+# Domain Architecture
+
+Binder is the **semantic control plane** (brain) of a marketing data lake. It does not store raw platform metrics; it owns the **metadata and mappings** that give lake facts business meaning.
+
+**Flow:** marketing platforms export facts with native IDs → ETL lands them in the lake → Binder enriches via the **Bridge layer** using Business and Media vocabulary → BI reports by company, client, campaign, channel, format, and strategic dimensions.
+
+Living entity reference: [domain-model.md](mdc:.cursor/skills/create-entities/domain-model.md). Entity creation workflow: [create-entities skill](mdc:.cursor/skills/create-entities/SKILL.md).
+
+## Layered Architecture
+
+```mermaid
+flowchart TB
+    subgraph access ["Access Layer"]
+        User
+        Company
+        UserCompany
+        Invite
+    end
+
+    subgraph business ["Business Layer"]
+        Client
+        Campaign
+    end
+
+    subgraph media ["Media Layer (catalog)"]
+        Platform
+        Channel
+        Format
+        SubFormat
+        Grouping
+        SubGrouping
+    end
+
+    subgraph bridge ["Bridge Layer (matching)"]
+        PlatformAccount
+        PlatformObjectMap
+    end
+
+    subgraph lake ["Data Lake / ETL"]
+        Facts["Facts with platform IDs"]
+    end
+
+    Company --> Client --> Campaign
+    Platform --> Channel
+    Format --> SubFormat
+    Grouping --> SubGrouping
+
+    Client --> PlatformAccount
+    Platform --> PlatformAccount
+    Campaign --> PlatformObjectMap
+    PlatformAccount --> PlatformObjectMap
+    media --> PlatformObjectMap
+
+    Facts --> bridge
+    bridge --> business
+```
+
+## Layers and Concerns
+
+| Layer | Responsibility | Entities | Status |
+|-------|----------------|----------|--------|
+| **Access** | Who can use the system; company-scoped permissions and onboarding | `User`, `Company`, `UserCompany`, `Invite` | Implemented |
+| **Business** | Organizational spine: contracts and initiatives under a company | `Client`, `Campaign` | Planned |
+| **Media** | Reference catalog of internal vocabulary for classifying ads (defines *possible* labels, not instance mappings) | `Platform`, `Channel`, `Format`, `SubFormat`, `Grouping`, `SubGrouping` | Planned |
+| **Bridge** | Match lake rows (platform-native IDs from ETL) to Binder meaning | `PlatformAccount`, `PlatformObjectMap` | Planned |
+
+### Access Layer
+
+- Answers: *who is using the system, and for which company?*
+- `UserCompany` is the membership grant (soft revoke via `isActive`); `Invite` is pre-user onboarding.
+- Must **not** store campaign data, media taxonomy, or platform object IDs.
+
+### Business Layer
+
+- Answers: *what contract and initiative does this data belong to?*
+- Hierarchy: `Company → Client → Campaign` (e.g. Binder-DF → Caixa → Mega da Virada 2025).
+- Must **not** store platform-native IDs (`campaign_id`, `ad_set_id`, `ad_id`) on `Campaign` — that belongs in Bridge.
+
+### Media Layer
+
+- Answers: *what categories exist for describing where and how ads ran, and what strategy they carry?*
+- Taxonomy chains: `Platform → Channel`; `Format → SubFormat`; `Grouping → SubGrouping`.
+- Defines vocabulary only. Media alone does **not** know which ad gets which label — Bridge applies labels to platform objects.
+
+### Bridge Layer
+
+- Answers: *which lake row maps to which Binder campaign and optional media/strategic labels?*
+- `PlatformAccount`: platform + client + `external_account_id` (IDs are unique per account).
+- `PlatformObjectMap`: `object_type` (`campaign` | `ad_set` | `ad`) + `external_id` → `binder_campaign_id`; optional FKs to `Channel`, `Format`, `SubFormat`; subgroupings via junction.
+- Lake join key: `(platform_account, object_type, external_id)`. Resolve most-specific level first: ad → ad_set → campaign.
+- Must **not** redefine business or taxonomy rules — only **reference** them via FKs.
+
+## Layer Boundaries (Do Not Cross)
+
+| Layer | Must NOT |
+|-------|----------|
+| Access | Store campaign taxonomy or platform IDs |
+| Business | Store Google/Meta/TikTok instance IDs |
+| Media | Store platform-specific instance IDs from exports |
+| Bridge | Redefine business entities or taxonomy catalogs |
+
+## Design Principles
+
+1. **Separation of concerns** — each layer has one job; cross-layer links use FKs, not merged entities.
+2. **Binder is source of truth** for dimensions and mappings; the lake stores facts; ETL joins at read time.
+3. **Many-to-one mappings** — multiple platform campaigns may map to one Binder `Campaign` (e.g. Always On).
+4. **New entities** — place in `src/<feature>/`; update [domain-model.md](mdc:.cursor/skills/create-entities/domain-model.md) and [project-structure.mdc](mdc:.cursor/rules/project-structure.mdc) when implemented.

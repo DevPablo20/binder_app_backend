@@ -5,7 +5,7 @@ alwaysApply: true
 
 # Project Structure
 
-NestJS 11 + TypeORM + PostgreSQL API for BI binder parametrization.
+NestJS 11 + TypeORM + PostgreSQL API for BI binder parametrization — the semantic brain of a marketing data lake. See [domain-architecture.mdc](mdc:.cursor/rules/domain-architecture.mdc) for layered domain design (Access, Business, Media, Bridge).
 
 ## Root Layout
 
