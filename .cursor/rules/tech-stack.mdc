@@ -62,7 +62,7 @@ app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: t
   - Snake_case DB columns with explicit `name`
   - `@CreateDateColumn` / `@UpdateDateColumn` with `timestamp with time zone`
   - Relations loaded explicitly via `relations: { ... }` in queries
-- Migrations workflow: `npm run build` → `npm run migration:generate src/database/migrations/<name>` → `npm run migration:run`.
+- Migrations workflow: `npm run build` → `npm run migration:generate src/system/database/migrations/<name>` → `npm run migration:run`.
 - CLI reads compiled JS from `dist/` — always build before generating or running migrations.
 
 ```typescript
@@ -112,8 +112,10 @@ synchronize: true
 
 ### Practices
 
-- Swagger UI is served at **`/api`** — keep `DocumentBuilder` metadata in `main.ts`.
-- Decorate DTOs with `@ApiProperty()`; add `@ApiTags()`, `@ApiBearerAuth()` etc. on controllers as endpoints grow.
+- Swagger UI is served at **`/api`** — config in `src/shared/swagger/swagger.config.ts`, wired in `main.ts`.
+- Use `layerTag(Layer.X, 'Resource')` from `src/shared/swagger/layer-tags.ts` for `@ApiTags()` on controllers.
+- `x-tagGroups` in swagger config groups endpoints by domain layer in Swagger UI.
+- Decorate DTOs with `@ApiProperty()`; add `@ApiCookieAuth()` on protected controllers.
 - Swagger major version must match NestJS major (both 11.x).
 
 ## Email
@@ -163,7 +165,7 @@ synchronize: true
 npm run start:dev          # Dev server (watch mode)
 docker compose up          # App :8090, Postgres :55432
 npm run build              # Compile TS → dist/
-npm run migration:generate src/database/migrations/<name>
+npm run migration:generate src/system/database/migrations/<name>
 npm run migration:run      # Apply pending migrations
 npm run seed:run           # Run default seed
 npm run lint               # ESLint + Prettier

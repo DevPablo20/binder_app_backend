@@ -10,14 +10,14 @@ import {
   JoinTable,
   Unique,
 } from 'typeorm';
-import { PlatformObjectType } from 'src/common/platform-object-type.enum';
+import { PlatformObjectType } from 'src/shared/platform-object-type.enum';
 import { PlatformAccount } from './platform-account.entity';
-import { Campaign } from 'src/campaign/campaign.entity';
-import { Channel } from 'src/platform/channel.entity';
-import { BuyingType } from 'src/platform/buying-type.entity';
-import { Format } from 'src/format/format.entity';
-import { SubFormat } from 'src/format/sub-format.entity';
-import { SubGrouping } from 'src/grouping/sub-grouping.entity';
+import { Campaign } from 'src/business/campaign/campaign.entity';
+import { Channel } from 'src/media/platform/channel.entity';
+import { BuyingType } from 'src/media/platform/buying-type.entity';
+import { Format } from 'src/media/format/format.entity';
+import { SubFormat } from 'src/media/format/sub-format.entity';
+import { SubGrouping } from 'src/media/grouping/sub-grouping.entity';
 
 @Entity({ name: 'platform_object_map' })
 @Unique(['platformAccount', 'objectType', 'externalId'])

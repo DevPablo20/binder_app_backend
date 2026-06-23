@@ -29,7 +29,7 @@ binder_app_backend/
 | File | Role |
 |------|------|
 | `src/main.ts` | Bootstrap: Swagger (`/api`), CORS, cookie-parser, global ValidationPipe |
-| `src/app.module.ts` | Root module — imports all feature modules |
+| `src/app.module.ts` | Root module — imports layer aggregator modules |
 
 ## Source Tree (`src/`)
 
@@ -37,122 +37,97 @@ binder_app_backend/
 src/
 ├── main.ts
 ├── app.module.ts
-├── auth/
-│   ├── auth.module.ts          # JWT, global AuthGuard (APP_GUARD), imports MailModule
-│   ├── auth.controller.ts      # login, logout, password/forgot, password/reset
-│   ├── auth.service.ts         # login + password reset; injects MailService
-│   ├── auth.service.spec.ts    # forgot/reset behavior contract
-│   ├── auth.guard.ts
-│   ├── auth.dto.ts             # LoginDTO, ForgottenPasswordDTO, ResetPasswordDTO
-│   ├── userSignature.type.ts
-│   └── decorators/
-│       ├── public.decorator.ts   # @Public() — skip auth
-│       ├── private.decorator.ts  # @Private(Role.X) — role check
-│       └── currentUser.decorator.ts
-├── user/
-│   ├── user.module.ts
-│   ├── user.controller.ts
-│   ├── user.service.ts
-│   └── user.entity.ts
-├── user-company/
-│   ├── user-company.module.ts    # service-only; exports UserCompanyService
-│   ├── user-company.controller.ts # PATCH revoke, PUT sync (Superadmin)
-│   ├── user-company.service.ts   # grant/revoke/sync memberships (Superadmin)
-│   ├── user-company.dto.ts
-│   └── user-company.entity.ts
-├── company/
-│   ├── company.module.ts
-│   ├── company.controller.ts
-│   ├── company.service.ts
-│   └── company.entity.ts
-├── client/
-│   ├── client.module.ts          # entities only; no routes yet
-│   └── client.entity.ts          # Business layer; FK to Company
-├── campaign/
-│   ├── campaign.module.ts        # entities only; no routes yet
-│   └── campaign.entity.ts        # Business layer; FK to Client
-├── platform/
-│   ├── platform.module.ts        # entities only; no routes yet
-│   ├── platform.entity.ts        # Media layer (global)
-│   ├── channel.entity.ts         # Media layer; FK to Platform
-│   └── buying-type.entity.ts     # Media layer (global); M:N via channel_buying_type
-├── format/
-│   ├── format.module.ts          # entities only; no routes yet
-│   ├── format.entity.ts          # Media layer (global)
-│   └── sub-format.entity.ts      # Media layer; FK to Format
-├── grouping/
-│   ├── grouping.module.ts        # entities only; no routes yet
-│   ├── grouping.entity.ts        # Media layer; FK to Campaign
-│   └── sub-grouping.entity.ts    # Media layer; FK to Grouping
+├── access/
+│   ├── access.module.ts        # Aggregator: Auth, User, Company, UserCompany, Invite
+│   ├── auth/
+│   │   ├── auth.module.ts      # JWT, global AuthGuard (APP_GUARD), imports MailModule
+│   │   ├── auth.controller.ts  # POST access/auth/login, logout, password/*
+│   │   ├── auth.service.ts
+│   │   ├── auth.guard.ts
+│   │   ├── auth.dto.ts
+│   │   ├── userSignature.type.ts
+│   │   └── decorators/         # @Public(), @Private(), @CurrentUser()
+│   ├── user/
+│   ├── company/
+│   ├── user-company/
+│   └── invite/
+├── business/
+│   ├── business.module.ts      # Aggregator: Client, Campaign
+│   ├── client/
+│   └── campaign/
+├── media/
+│   ├── media.module.ts         # Aggregator: Platform, Format, Grouping
+│   ├── platform/               # Platform, Channel, BuyingType (global catalog)
+│   ├── format/                 # Format, SubFormat (global catalog)
+│   └── grouping/               # Grouping, SubGrouping (campaign-scoped strategy)
 ├── bridge/
-│   ├── bridge.module.ts            # entities only; no routes yet
-│   ├── platform-account.entity.ts  # Bridge; FK to Client + Platform
-│   └── platform-object-map.entity.ts # Bridge; ETL object → Campaign + media FKs
-├── invite/
-│   ├── invite.module.ts
-│   ├── invite.controller.ts
-│   ├── invite.service.ts
-│   └── invite.entity.ts
-├── mail/
-│   ├── mail.module.ts          # exports MailService only (no controller)
-│   └── mail.service.ts         # MailerSend: sendMail, sendInviteEmail, sendPasswordResetEmail
-├── database/
-│   ├── database.module.ts      # TypeOrmModule.forRootAsync
-│   ├── typeorm.config.ts       # Shared config (NestJS + CLI)
-│   ├── typeormFile.ts          # TypeORM CLI data source
-│   ├── migrations/
-│   └── seeds/default.ts
-└── common/
-    ├── role.enum.ts            # Superadmin, Editor, Viewer
-    └── platform-object-type.enum.ts  # campaign, ad_set, ad (Bridge ETL join)
+│   ├── bridge.module.ts
+│   ├── platform-account.entity.ts
+│   └── platform-object-map.entity.ts
+├── system/
+│   ├── system.module.ts        # Aggregator: Database, Mail
+│   ├── database/
+│   │   ├── database.module.ts  # TypeOrmModule.forRootAsync
+│   │   ├── typeorm.config.ts
+│   │   ├── typeormFile.ts
+│   │   ├── migrations/
+│   │   └── seeds/default.ts
+│   └── mail/
+│       ├── mail.module.ts      # exports MailService only (no HTTP routes)
+│       └── mail.service.ts
+└── shared/
+    ├── swagger/
+    │   ├── layer-tags.ts       # Layer enum + layerTag() helper
+    │   └── swagger.config.ts   # DocumentBuilder + x-tagGroups
+    ├── role.enum.ts
+    ├── role.util.ts
+    ├── invite-status.enum.ts
+    └── platform-object-type.enum.ts
 ```
 
-## Active Modules
+## Layer Modules (AppModule imports)
 
-| Module | Registered in `AppModule` | TypeORM |
-|--------|---------------------------|---------|
-| `DatabaseModule` | Yes (first) | `forRootAsync` via `buildTypeOrmConfig()` |
-| `AuthModule` | Yes | `forFeature([User, UserCompany])`; imports `MailModule` |
-| `UserModule` | Yes | `forFeature([User, UserCompany])`; imports `UserCompanyModule` |
-| `UserCompanyModule` | No (imported by `UserModule`) | `forFeature([UserCompany, User, Company])`; exports `UserCompanyService` only |
-| `CompanyModule` | Yes | `forFeature([Company, UserCompany])` |
-| `InviteModule` | Yes | `forFeature([Invite, User, Company])` |
-| `ClientModule` | Yes | `forFeature([Client, Company])` — entities only, no routes |
-| `CampaignModule` | Yes | `forFeature([Campaign, Client])` — entities only, no routes |
-| `PlatformModule` | Yes | `forFeature([Platform, Channel, BuyingType])` — `channel_buying_type` junction |
-| `FormatModule` | Yes | `forFeature([Format, SubFormat])` — entities only, no routes |
-| `GroupingModule` | Yes | `forFeature([Grouping, SubGrouping, Campaign])` — entities only, no routes |
-| `BridgeModule` | Yes | `forFeature([PlatformAccount, PlatformObjectMap, ...])` — `platform_object_map_sub_grouping` junction |
-| `MailModule` | Yes | — (service-only; consumed by `AuthModule`) |
+| Layer module | Feature modules | HTTP prefix |
+|--------------|-----------------|-------------|
+| `SystemModule` | `DatabaseModule`, `MailModule` | `system/` |
+| `AccessModule` | `AuthModule`, `UserModule`, `CompanyModule`, `UserCompanyModule`, `InviteModule` | `access/` |
+| `BusinessModule` | `ClientModule`, `CampaignModule` | `business/` |
+| `MediaModule` | `PlatformModule`, `FormatModule`, `GroupingModule` | `media/` |
+| `BridgeModule` | (entities only; no routes yet) | `bridge/` |
 
 ## TypeORM Pattern
 
 - **Root connection**: `DatabaseModule` → `TypeOrmModule.forRootAsync` + `ConfigService`
 - **Feature repos**: `TypeOrmModule.forFeature([Entity])` in each module that needs DB access
 - **Injection**: `@InjectRepository(Entity)` — never use custom provider tokens
-- **CLI**: `typeormFile.ts` reuses `buildTypeOrmConfig()` from `typeorm.config.ts`
-- **Entities glob**: `src/**/*.entity.ts` (compiled to `dist/**/*.entity.js`)
+- **CLI**: `typeormFile.ts` at `src/system/database/` reuses `buildTypeOrmConfig()`
+- **Entities glob**: `src/**/*.entity.ts` via `__dirname + '/../../**/*.entity{.ts,.js}'`
 
 ## Auth
 
-- Global `AuthGuard` registered via `APP_GUARD` in `AuthModule`
+- Global `AuthGuard` registered via `APP_GUARD` in `AuthModule` (`src/access/auth/`)
 - JWT stored in `access_token` cookie (also accepts `Authorization` header)
 - `@CurrentUser()` returns `UserSignature` (`id`, `name`, `role`, `companyIds`)
-- `Role` enum lives in `src/common/role.enum.ts` — not in `auth/`
-- Public routes: `POST /auth/login`, `POST /auth/logout`, `POST /auth/password/forgot`, `POST /auth/password/reset`
+- `Role` enum lives in `src/shared/role.enum.ts`
+- Public routes: `POST /access/auth/login`, `POST /access/auth/logout`, `POST /access/auth/password/forgot`, `POST /access/auth/password/reset`
+
+## Swagger
+
+- UI at **`/api`** — config in `src/shared/swagger/swagger.config.ts`, wired in `main.ts`
+- Controllers use `@ApiTags(layerTag(Layer.X, 'Resource'))` from `src/shared/swagger/layer-tags.ts`
+- `x-tagGroups` collapses endpoints by domain layer in Swagger UI
 
 ## Cross-Module Wiring
 
-- `AuthModule` imports `MailModule` to send password-reset emails from `AuthService`
-- `MailModule` exports `MailService` only — no HTTP routes; email is triggered by auth, not by direct mail endpoints
-- Feature modules that need email should import `MailModule` and inject `MailService` — do not instantiate MailerSend outside `mail.service.ts`
-- `UserModule` imports `UserCompanyModule` for membership read projections and `UserCompanyService`
+- `AuthModule` imports `MailModule` (`src/system/mail/`) for password-reset emails
+- `InviteModule` imports `MailModule` for invite emails
+- `UserModule` imports `UserCompanyModule` for membership projections
 
 ## Conventions
 
-- **New feature**: create `src/<feature>/` with module, controller, service, entity; add `TypeOrmModule.forFeature([Entity])`; import in `app.module.ts`
-- **Shared enums/types**: place in `src/common/`
-- **Module order in `AppModule`**: `DatabaseModule` must load before modules that use TypeORM
+- **New entity**: create under `src/<layer>/<feature>/`; register in layer feature module; update [domain-model.md](mdc:.cursor/skills/create-entities/domain-model.md)
+- **Shared enums/types**: `src/shared/`
+- **Module order in `AppModule`**: `SystemModule` first (DatabaseModule), then `AccessModule` (AuthGuard)
 - **Env config**: global `ConfigModule` reads `./.env.${process.env.NODE_ENV}`
 - **Do not edit**: `dist/`, `node_modules/`, `infra/postgres_data/`
 
@@ -161,7 +136,7 @@ src/
 ```bash
 npm run start:dev                                              # Dev server
 docker compose up                                              # App :8090, Postgres :55432
-npm run build && npm run migration:generate src/database/migrations/<name>
+npm run build && npm run migration:generate src/system/database/migrations/<name>
 npm run migration:run                                          # Apply migrations
 npm run migration:show                                         # Migration status
 npm run seed:run                                               # Run default seed

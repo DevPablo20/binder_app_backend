@@ -114,4 +114,4 @@ flowchart TB
 1. **Separation of concerns** — each layer has one job; cross-layer links use FKs, not merged entities.
 2. **Binder is source of truth** for dimensions and mappings; the lake stores facts; ETL joins at read time.
 3. **Many-to-one mappings** — multiple platform campaigns may map to one Binder `Campaign` (e.g. Always On).
-4. **New entities** — place in `src/<feature>/`; update [domain-model.md](mdc:.cursor/skills/create-entities/domain-model.md) and [project-structure.mdc](mdc:.cursor/rules/project-structure.mdc) when implemented.
+4. **New entities** — place in `src/<layer>/<feature>/`; update [domain-model.md](mdc:.cursor/skills/create-entities/domain-model.md) and [project-structure.mdc](mdc:.cursor/rules/project-structure.mdc) when implemented.
