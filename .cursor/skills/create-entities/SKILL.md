@@ -18,13 +18,13 @@ NestJS 11 + TypeORM 0.3 + PostgreSQL. Schema changes are **migration-only** (`sy
 
 Clarify with the user (or infer from context):
 
-1. Entity name and feature folder (`src/<feature>/`)
+1. Entity name and feature folder (`src/<layer>/<feature>/` — e.g. `src/business/client/`)
 2. Columns: types, nullability, uniqueness, defaults
-3. Enums → place in `src/common/`, reference from entity `@Column({ enum: X })`
+3. Enums → place in `src/shared/`, reference from entity `@Column({ enum: X })`
 4. Relationships: type, owning side, cascade/delete behavior
 5. Which module(s) need repository access
 
-Read existing entities first: `src/user/user.entity.ts`, `src/company/company.entity.ts`.
+Read existing entities first: `src/access/user/user.entity.ts`, `src/access/company/company.entity.ts`.
 
 ## Workflow Checklist
 
@@ -40,7 +40,7 @@ Read existing entities first: `src/user/user.entity.ts`, `src/company/company.en
 
 ## Entity Template
 
-File: `src/<feature>/<feature>.entity.ts`
+File: `src/<layer>/<feature>/<feature>.entity.ts`
 
 ```typescript
 import {
@@ -74,7 +74,7 @@ export class FeatureName {
 - Timestamps: `@CreateDateColumn` / `@UpdateDateColumn` with `timestamp with time zone`
 - Sensitive fields: `select: false` (see `password` on User)
 - **No** class-validator decorators on entities — validation belongs in DTOs
-- Shared enums/types → `src/common/`
+- Shared enums/types → `src/shared/`
 - Import paths: `src/...` (match existing entities)
 - Circular imports: use lazy refs in decorators — `() => OtherEntity`
 
@@ -132,7 +132,7 @@ export class FeatureModule {}
 
 - Register `forFeature` in **every** module that uses `@InjectRepository(Entity)`
 - If Entity A is used in Module B, import `TypeOrmModule.forFeature([EntityA])` in Module B
-- New feature module → add to `src/app.module.ts` **after** `DatabaseModule`
+- New feature module → add to the layer aggregator module (`AccessModule`, `BusinessModule`, etc.) and ensure layer module is in `src/app.module.ts` **after** `SystemModule`
 - Entities are auto-discovered via glob in `typeorm.config.ts` — no manual entity registration
 
 ## Querying Relations
@@ -146,7 +146,7 @@ await repo.findOne({
 });
 ```
 
-When saving ManyToMany links (see `src/database/seeds/default.ts`):
+When saving ManyToMany links (see `src/system/database/seeds/default.ts`):
 
 ```typescript
 user.companies = [...user.companies, company];
@@ -159,7 +159,7 @@ Always:
 
 ```bash
 npm run build
-npm run migration:generate src/database/migrations/<DescriptiveName>
+npm run migration:generate src/system/database/migrations/<DescriptiveName>
 npm run migration:run
 ```
 

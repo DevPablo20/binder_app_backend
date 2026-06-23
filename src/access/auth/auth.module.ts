@@ -1,0 +1,42 @@
+import { Module } from '@nestjs/common';
+import { AuthController } from './auth.controller';
+import { JwtModule } from '@nestjs/jwt';
+import { APP_GUARD } from '@nestjs/core';
+import { AuthService } from './auth.service';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { AuthGuard } from './auth.guard';
+import { JwtSignOptions } from '@nestjs/jwt';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { User } from '../user/user.entity';
+import { UserCompany } from '../user-company/user-company.entity';
+import { MailModule } from 'src/system/mail/mail.module';
+
+@Module({
+  imports: [
+    ConfigModule,
+    MailModule,
+    TypeOrmModule.forFeature([User, UserCompany]),
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        global: true,
+        secret: config.getOrThrow<string>('JWT_SECRET_KEY'),
+        signOptions: {
+          expiresIn:
+            config.getOrThrow<JwtSignOptions['expiresIn']>('JWT_EXPIRES_IN'),
+        },
+      }),
+    }),
+  ],
+  controllers: [AuthController],
+  providers: [
+    AuthService,
+    {
+      provide: APP_GUARD,
+      useClass: AuthGuard,
+    },
+  ],
+  exports: [AuthService],
+})
+export class AuthModule {}

@@ -46,8 +46,8 @@ erDiagram
 | | |
 |---|---|
 | **Business role** | Represents a person who authenticates and operates inside the app. Handles login, authorization by role, and password recovery. |
-| **Source file** | `src/user/user.entity.ts` |
-| **Module** | `src/user/user.module.ts` (repository also registered in `AuthModule`) |
+| **Source file** | `src/access/user/user.entity.ts` |
+| **Module** | `src/access/user/user.module.ts` (repository also registered in `AuthModule`) |
 
 **Key fields**
 
@@ -56,18 +56,18 @@ erDiagram
 | `name` | Display name of the person |
 | `email` | Unique login identifier |
 | `password` | Hashed credential; never returned in queries (`select: false`) |
-| `role` | App-wide permission level (`superadmin`, `editor`, `viewer`) — see `src/common/role.enum.ts` |
+| `role` | App-wide permission level (`superadmin`, `editor`, `viewer`) — see `src/shared/role.enum.ts` |
 | `isActive` | Whether the account can authenticate |
 | `passwordResetToken` / `passwordResetExpires` | Temporary credentials for password recovery flow |
 | `createdAt` / `updatedAt` | Audit timestamps |
 
 **Used by**
 
-- `src/auth/auth.service.ts` — login, password reset
-- `src/auth/auth.guard.ts` — JWT validation; loads `userCompanies` to build session
-- `src/auth/userSignature.type.ts` — exposes `companyIds` from active memberships
-- `src/user/user.service.ts` — profile and user detail endpoints
-- `src/database/seeds/default.ts` — seed admin user and company link
+- `src/access/auth/auth.service.ts` — login, password reset
+- `src/access/auth/auth.guard.ts` — JWT validation; loads `userCompanies` to build session
+- `src/access/auth/userSignature.type.ts` — exposes `companyIds` from active memberships
+- `src/access/user/user.service.ts` — profile and user detail endpoints
+- `src/system/database/seeds/default.ts` — seed admin user and company link
 
 **Relationships**
 
@@ -83,8 +83,8 @@ erDiagram
 | | |
 |---|---|
 | **Business role** | Represents a company unit (organizational scope) in the app. Users operate within the context of the companies they are linked to. |
-| **Source file** | `src/company/company.entity.ts` |
-| **Module** | `src/company/company.module.ts` |
+| **Source file** | `src/access/company/company.entity.ts` |
+| **Module** | `src/access/company/company.module.ts` |
 
 **Key fields**
 
@@ -97,9 +97,9 @@ erDiagram
 
 **Used by**
 
-- `src/auth/auth.guard.ts` — resolves `companyIds` for the authenticated session
-- `src/company/company.service.ts` — list and detail endpoints
-- `src/database/seeds/default.ts` — seed default company and link to admin user
+- `src/access/auth/auth.guard.ts` — resolves `companyIds` for the authenticated session
+- `src/access/company/company.service.ts` — list and detail endpoints
+- `src/system/database/seeds/default.ts` — seed default company and link to admin user
 
 **Relationships**
 
@@ -114,8 +114,8 @@ erDiagram
 | | |
 |---|---|
 | **Business role** | Membership / access grant linking a user to a company unit. Controls whether a logged-in user may access that company. |
-| **Source file** | `src/user-company/user-company.entity.ts` |
-| **Module** | `src/user-company/user-company.module.ts` (service-only; imported by `UserModule`) |
+| **Source file** | `src/access/user-company/user-company.entity.ts` |
+| **Module** | `src/access/user-company/user-company.module.ts` (service-only; imported by `UserModule`) |
 
 **Key fields**
 
@@ -128,11 +128,11 @@ erDiagram
 
 **Used by**
 
-- `src/auth/auth.guard.ts` — filters active memberships into `companyIds`
-- `src/auth/auth.service.ts` — loads memberships on login
-- `src/user-company/user-company.service.ts` — grant, revoke, bulk sync (Superadmin only)
-- `src/user-company/user-company.controller.ts` — `PATCH /user-company/:id/revoke`, `PUT /user-company/user/:userId/sync`
-- `src/database/seeds/default.ts` — creates admin ↔ company link with `status: true`
+- `src/access/auth/auth.guard.ts` — filters active memberships into `companyIds`
+- `src/access/auth/auth.service.ts` — loads memberships on login
+- `src/access/user-company/user-company.service.ts` — grant, revoke, bulk sync (Superadmin only)
+- `src/access/user-company/user-company.controller.ts` — `PATCH /access/user-companies/:id/revoke`, `PUT /access/user-companies/user/:userId/sync`
+- `src/system/database/seeds/default.ts` — creates admin ↔ company link with `status: true`
 
 **Relationships**
 
@@ -150,8 +150,8 @@ erDiagram
 | | |
 |---|---|
 | **Business role** | Stores invite-flow data before a user gains company access. One invite can target multiple companies with a single token and role. On accept, creates `UserCompany` rows and sets the invitee's global role. |
-| **Source file** | `src/invite/invite.entity.ts` |
-| **Module** | `src/invite/invite.module.ts` |
+| **Source file** | `src/access/invite/invite.entity.ts` |
+| **Module** | `src/access/invite/invite.module.ts` |
 
 **Key fields**
 
@@ -179,14 +179,14 @@ erDiagram
 
 **Used by**
 
-- `src/invite/invite.service.ts` — full invite lifecycle:
+- `src/access/invite/invite.service.ts` — full invite lifecycle:
   - `POST /invite` — create + email (Editor/Superadmin)
   - `GET /invite` — list sent invites
   - `POST /invite/:id/cancel` — cancel pending/expired
   - `POST /invite/:id/resend` — resend expired
   - `POST /invite/accept` — public; creates **new user only** (rejects existing email)
   - `POST /invite/refuse` — public; marks refused
-- `src/mail/mail.service.ts` — `sendInviteEmail` on create/resend
+- `src/system/mail/mail.service.ts` — `sendInviteEmail` on create/resend
 
 **Accept constraint:** invite accept is for **new users only**. If the email already exists, create and accept both reject — role/company changes for existing users belong to a separate flow.
 
@@ -210,8 +210,8 @@ erDiagram
 | | |
 |---|---|
 | **Business role** | Represents a client account won by a company unit (e.g. Caixa, SERPRO under Binder-DF). |
-| **Source file** | `src/client/client.entity.ts` |
-| **Module** | `src/client/client.module.ts` (entities only, no routes) |
+| **Source file** | `src/business/client/client.entity.ts` |
+| **Module** | `src/business/client/client.module.ts` (entities only, no routes) |
 
 **Key fields**
 
@@ -237,8 +237,8 @@ erDiagram
 | | |
 |---|---|
 | **Business role** | Represents a marketing initiative for a client (e.g. Mega da Virada 2025, Always On). |
-| **Source file** | `src/campaign/campaign.entity.ts` |
-| **Module** | `src/campaign/campaign.module.ts` (entities only, no routes) |
+| **Source file** | `src/business/campaign/campaign.entity.ts` |
+| **Module** | `src/business/campaign/campaign.module.ts` (entities only, no routes) |
 
 **Key fields**
 
@@ -266,8 +266,8 @@ erDiagram
 | | |
 |---|---|
 | **Business role** | Global catalog of media platforms where ads run (Google, TikTok, Pinterest, OOH, TV). |
-| **Source file** | `src/platform/platform.entity.ts` |
-| **Module** | `src/platform/platform.module.ts` |
+| **Source file** | `src/media/platform/platform.entity.ts` |
+| **Module** | `src/media/platform/platform.module.ts` |
 
 **Key fields**
 
@@ -291,8 +291,8 @@ erDiagram
 | | |
 |---|---|
 | **Business role** | Sub-division of a platform (e.g. Google Search, Google YouTube). Defines which buying types are valid. |
-| **Source file** | `src/platform/channel.entity.ts` |
-| **Module** | `src/platform/platform.module.ts` |
+| **Source file** | `src/media/platform/channel.entity.ts` |
+| **Module** | `src/media/platform/platform.module.ts` |
 
 **Key fields**
 
@@ -319,8 +319,8 @@ erDiagram
 | | |
 |---|---|
 | **Business role** | Global catalog of buying/pricing models (CPC, CPM, CPV, CPA, CPE, Flat). |
-| **Source file** | `src/platform/buying-type.entity.ts` |
-| **Module** | `src/platform/platform.module.ts` |
+| **Source file** | `src/media/platform/buying-type.entity.ts` |
+| **Module** | `src/media/platform/platform.module.ts` |
 
 **Key fields**
 
@@ -346,8 +346,8 @@ erDiagram
 | | |
 |---|---|
 | **Business role** | Global catalog of creative format types (static, video). |
-| **Source file** | `src/format/format.entity.ts` |
-| **Module** | `src/format/format.module.ts` |
+| **Source file** | `src/media/format/format.entity.ts` |
+| **Module** | `src/media/format/format.module.ts` |
 
 **Key fields**
 
@@ -371,8 +371,8 @@ erDiagram
 | | |
 |---|---|
 | **Business role** | Finer creative specification under a format (carousel, card; 6s GIF, 15s, 30s video). |
-| **Source file** | `src/format/sub-format.entity.ts` |
-| **Module** | `src/format/format.module.ts` |
+| **Source file** | `src/media/format/sub-format.entity.ts` |
+| **Module** | `src/media/format/format.module.ts` |
 
 **Key fields**
 
@@ -397,8 +397,8 @@ erDiagram
 | | |
 |---|---|
 | **Business role** | Campaign-scoped strategic dimension type (Territory, Theme). Options vary per campaign. |
-| **Source file** | `src/grouping/grouping.entity.ts` |
-| **Module** | `src/grouping/grouping.module.ts` |
+| **Source file** | `src/media/grouping/grouping.entity.ts` |
+| **Module** | `src/media/grouping/grouping.module.ts` |
 
 **Key fields**
 
@@ -424,8 +424,8 @@ erDiagram
 | | |
 |---|---|
 | **Business role** | Value under a campaign grouping (e.g. Territory → Canais, Crédito, Oportunidades e Clientes). |
-| **Source file** | `src/grouping/sub-grouping.entity.ts` |
-| **Module** | `src/grouping/grouping.module.ts` |
+| **Source file** | `src/media/grouping/sub-grouping.entity.ts` |
+| **Module** | `src/media/grouping/grouping.module.ts` |
 
 **Key fields**
 
@@ -512,7 +512,7 @@ erDiagram
 
 **ETL join:** match `external_id` + `object_type` + `platform_account_id`. Resolve most-specific level first: ad → ad_set → campaign.
 
-**Enum:** `PlatformObjectType` in `src/common/platform-object-type.enum.ts`.
+**Enum:** `PlatformObjectType` in `src/shared/platform-object-type.enum.ts`.
 
 ---
 
@@ -543,7 +543,7 @@ erDiagram
 - Explicit entity (`UserCompany`) with `id`, `status`, and timestamps
 - `UNIQUE (user_id, company_id)` — one link per user–company pair
 - `status=false` = soft revoke; no re-login required for change to take effect
-- Link example: `src/database/seeds/default.ts` (find or create `UserCompany` with `status: true`)
+- Link example: `src/system/database/seeds/default.ts` (find or create `UserCompany` with `status: true`)
 
 **Junction table `invite_company`**
 
