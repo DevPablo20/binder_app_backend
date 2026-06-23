@@ -35,6 +35,9 @@ export function applySwaggerTagGroups(document: OpenAPIObject): OpenAPIObject {
     {
       name: 'Media — ad vocabulary catalog',
       tags: [
+        layerTag(Layer.Media, 'Platform'),
+        layerTag(Layer.Media, 'Channel'),
+        layerTag(Layer.Media, 'BuyingType'),
         layerTag(Layer.Media, 'Grouping'),
         layerTag(Layer.Media, 'SubGrouping'),
       ],
