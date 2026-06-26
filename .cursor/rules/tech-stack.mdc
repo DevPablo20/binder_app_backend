@@ -167,7 +167,10 @@ docker compose up          # App :8090, Postgres :55432
 npm run build              # Compile TS → dist/
 npm run migration:generate src/system/database/migrations/<name>
 npm run migration:run      # Apply pending migrations
-npm run seed:run           # Run default seed
+npm run seed:run           # Run all layer seeds
+npm run seed:access        # Access layer seed
+npm run seed:business      # Business layer seed
+npm run seed:media         # Media layer seed
 npm run lint               # ESLint + Prettier
 npm test                   # Jest unit tests
 ```

@@ -146,7 +146,7 @@ await repo.findOne({
 });
 ```
 
-When saving ManyToMany links (see `src/system/database/seeds/default.ts`):
+When saving ManyToMany links (see `src/system/database/seeds/media.seed.ts`):
 
 ```typescript
 user.companies = [...user.companies, company];

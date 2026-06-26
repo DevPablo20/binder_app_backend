@@ -67,7 +67,7 @@ erDiagram
 - `src/access/auth/auth.guard.ts` — JWT validation; loads `userCompanies` to build session
 - `src/access/auth/userSignature.type.ts` — exposes `companyIds` from active memberships
 - `src/access/user/user.service.ts` — profile and user detail endpoints
-- `src/system/database/seeds/default.ts` — seed admin user and company link
+- `src/system/database/seeds/access.seed.ts` — seed admin user and company link
 
 **Relationships**
 
@@ -99,7 +99,7 @@ erDiagram
 
 - `src/access/auth/auth.guard.ts` — resolves `companyIds` for the authenticated session
 - `src/access/company/company.service.ts` — list and detail endpoints
-- `src/system/database/seeds/default.ts` — seed default company and link to admin user
+- `src/system/database/seeds/access.seed.ts` — seed default company and link to admin user
 
 **Relationships**
 
@@ -132,7 +132,7 @@ erDiagram
 - `src/access/auth/auth.service.ts` — loads memberships on login
 - `src/access/user-company/user-company.service.ts` — grant, revoke, bulk sync (Superadmin only)
 - `src/access/user-company/user-company.controller.ts` — `PATCH /access/user-companies/:id/revoke`, `PUT /access/user-companies/user/:userId/sync`
-- `src/system/database/seeds/default.ts` — creates admin ↔ company link with `status: true`
+- `src/system/database/seeds/access.seed.ts` — creates admin ↔ company link with `status: true`
 
 **Relationships**
 
@@ -230,6 +230,10 @@ erDiagram
 | Company | ManyToOne | Client (`company_id` FK) | Each client belongs to one company |
 | Campaign | OneToMany | Campaign (`client_id` FK) | Client has zero or more campaigns |
 
+**Seeded by**
+
+- `src/system/database/seeds/business.seed.ts` — Caixa client under Binder-DF
+
 ---
 
 ### Campaign
@@ -259,6 +263,10 @@ erDiagram
 
 **Must NOT store:** platform-native IDs (`campaign_id`, `ad_set_id`, `ad_id`) — Bridge layer owns those mappings.
 
+**Seeded by**
+
+- `src/system/database/seeds/business.seed.ts` — Always ON 2026 campaign under Caixa
+
 ---
 
 ### Platform
@@ -283,6 +291,10 @@ erDiagram
 | Related entity | Type | Owning side | Business reason |
 |----------------|------|-------------|-----------------|
 | Channel | OneToMany | Channel (`platform_id` FK) | Platform has zero or more channels |
+
+**Seeded by**
+
+- `src/system/database/seeds/media.seed.ts` — TikTok platform
 
 ---
 
@@ -312,6 +324,10 @@ erDiagram
 | Platform | ManyToOne | Channel (`platform_id` FK) | Each channel belongs to one platform |
 | BuyingType | ManyToMany | Channel (`channel_buying_type` junction) | Channel supports one or more buying types (e.g. YouTube → CPM + CPV) |
 
+**Seeded by**
+
+- `src/system/database/seeds/media.seed.ts` — TikTok Ads and TikTok Search channels
+
 ---
 
 ### BuyingType
@@ -339,6 +355,10 @@ erDiagram
 
 **Note:** Catalog defines what's *possible* on a channel. The actual buying type used on a specific ad is chosen in Bridge (`PlatformObjectMap`).
 
+**Seeded by**
+
+- `src/system/database/seeds/media.seed.ts` — CPM, CPV, CPC, CPA, CPE
+
 ---
 
 ### Format
@@ -363,6 +383,10 @@ erDiagram
 | Related entity | Type | Owning side | Business reason |
 |----------------|------|-------------|-----------------|
 | SubFormat | OneToMany | SubFormat (`format_id` FK) | Format has zero or more sub-formats |
+
+**Seeded by**
+
+- `src/system/database/seeds/media.seed.ts` — Video and Static formats with sub-formats
 
 ---
 
@@ -389,6 +413,10 @@ erDiagram
 | Related entity | Type | Owning side | Business reason |
 |----------------|------|-------------|-----------------|
 | Format | ManyToOne | SubFormat (`format_id` FK) | Each sub-format belongs to one format |
+
+**Seeded by**
+
+- `src/system/database/seeds/media.seed.ts` — Motion, Externa, GIF, Card, Carrossel
 
 ---
 
@@ -417,6 +445,10 @@ erDiagram
 | Campaign | ManyToOne | Grouping (`campaign_id` FK) | Strategic dimensions belong to a specific campaign |
 | SubGrouping | OneToMany | SubGrouping (`grouping_id` FK) | Grouping has zero or more values |
 
+**Seeded by**
+
+- `src/system/database/seeds/media.seed.ts` — Territory and Persona groupings on Always ON 2026
+
 ---
 
 ### SubGrouping
@@ -442,6 +474,10 @@ erDiagram
 | Related entity | Type | Owning side | Business reason |
 |----------------|------|-------------|-----------------|
 | Grouping | ManyToOne | SubGrouping (`grouping_id` FK) | Each value belongs to one grouping |
+
+**Seeded by**
+
+- `src/system/database/seeds/media.seed.ts` — Territory and Persona sub-grouping values
 
 ---
 
@@ -543,7 +579,7 @@ erDiagram
 - Explicit entity (`UserCompany`) with `id`, `status`, and timestamps
 - `UNIQUE (user_id, company_id)` — one link per user–company pair
 - `status=false` = soft revoke; no re-login required for change to take effect
-- Link example: `src/system/database/seeds/default.ts` (find or create `UserCompany` with `status: true`)
+- Link example: `src/system/database/seeds/access.seed.ts` (find or create `UserCompany` with `status: true`)
 
 **Junction table `invite_company`**
 
