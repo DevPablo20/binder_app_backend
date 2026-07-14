@@ -261,7 +261,7 @@ erDiagram
 | Client | ManyToOne | Campaign (`client_id` FK) | Each campaign belongs to one client |
 | Grouping | OneToMany | Grouping (`campaign_id` FK) | Campaign defines strategic dimension types |
 
-**Must NOT store:** platform-native IDs (`campaign_id`, `ad_set_id`, `ad_id`) — Bridge layer owns those mappings.
+**Must NOT store:** platform-native IDs (`campaign_id`, `ad_group_id`, `ad_id`) — Bridge layer owns those mappings.
 
 **Seeded by**
 
@@ -282,6 +282,7 @@ erDiagram
 | Field | Business meaning |
 |-------|------------------|
 | `name` | Platform name (globally unique) |
+| `catalogKey` | ETL lake catalog slug (`tiktok`, `google`, `meta`, …); null if no lake catalog yet |
 | `description` | Human-readable description |
 | `isActive` | Whether the platform entry is active |
 | `createdAt` / `updatedAt` | Audit timestamps |
@@ -487,7 +488,7 @@ erDiagram
 |---|---|
 | **Business role** | Links a client's platform ad account to Binder. ETL `account_id` joins here to resolve client, company, and platform context. |
 | **Source file** | `src/bridge/platform-account.entity.ts` |
-| **Module** | `src/bridge/bridge.module.ts` (entities only, no routes) |
+| **Module** | `src/bridge/bridge.module.ts` |
 
 **Key fields**
 
@@ -524,7 +525,7 @@ erDiagram
 
 | Field | Business meaning |
 |-------|------------------|
-| `objectType` | `campaign`, `ad_set`, or `ad` — which platform hierarchy level |
+| `objectType` | `campaign`, `ad_group`, or `ad` — which platform hierarchy level |
 | `externalId` | Platform-native ID at that level |
 | `externalName` | Optional platform object name for ops UI |
 | `isActive` | Soft-disable without deleting mapping history |
@@ -546,7 +547,7 @@ erDiagram
 | SubFormat | ManyToOne | PlatformObjectMap (`sub_format_id` FK) | Optional sub-format |
 | SubGrouping | ManyToMany | PlatformObjectMap (`platform_object_map_sub_grouping`) | Optional strategic tags |
 
-**ETL join:** match `external_id` + `object_type` + `platform_account_id`. Resolve most-specific level first: ad → ad_set → campaign.
+**ETL join:** match `external_id` + `object_type` + `platform_account_id`. Resolve most-specific level first: ad → ad_group → campaign.
 
 **Enum:** `PlatformObjectType` in `src/shared/platform-object-type.enum.ts`.
 

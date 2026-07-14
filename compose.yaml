@@ -10,6 +10,9 @@ services:
       - .env.development
     depends_on:
       - postgres_local
+    networks:
+      - default
+      - etl
     command: sh -c "npm install && npm run start:dev"
     tty: true
   postgres_local:
@@ -26,3 +29,8 @@ services:
       - ./infra/postgres_data:/var/lib/postgresql/data
     ports:
       - "55432:5432"
+
+networks:
+  etl:
+    external: true
+    name: binder_etl_default

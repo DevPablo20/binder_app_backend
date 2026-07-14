@@ -47,6 +47,7 @@ export class PlatformService {
     const platform = this.platformRepository.create({
       name: dto.name,
       description: dto.description,
+      catalogKey: dto.catalogKey ?? null,
       isActive: dto.isActive ?? true,
     });
 
@@ -54,7 +55,7 @@ export class PlatformService {
       await this.platformRepository.save(platform);
     } catch {
       throw new HttpException(
-        'Nome de plataforma já existe',
+        'Nome ou catalogKey de plataforma já existe',
         HttpStatus.CONFLICT,
       );
     }
@@ -85,6 +86,7 @@ export class PlatformService {
       const platform = platformsById.get(item.id)!;
       if (item.name !== undefined) platform.name = item.name;
       if (item.description !== undefined) platform.description = item.description;
+      if (item.catalogKey !== undefined) platform.catalogKey = item.catalogKey;
       if (item.isActive !== undefined) platform.isActive = item.isActive;
     }
 
@@ -96,7 +98,7 @@ export class PlatformService {
       return updated.map((platform) => this.toDetailDto(platform));
     } catch {
       throw new HttpException(
-        'Nome de plataforma já existe',
+        'Nome ou catalogKey de plataforma já existe',
         HttpStatus.CONFLICT,
       );
     }
@@ -115,6 +117,7 @@ export class PlatformService {
     return {
       id: platform.id,
       name: platform.name,
+      catalogKey: platform.catalogKey ?? null,
       isActive: platform.isActive,
     };
   }

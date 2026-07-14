@@ -62,8 +62,10 @@ src/
 │   └── grouping/               # Grouping, SubGrouping (campaign-scoped strategy)
 ├── bridge/
 │   ├── bridge.module.ts
-│   ├── platform-account.entity.ts
-│   └── platform-object-map.entity.ts
+│   ├── catalog-api.client.ts   # HTTP client → binder_etl /catalog/{key}
+│   ├── catalog.*               # enriched lake catalog discovery
+│   ├── platform-account.*      # account association CRUD
+│   └── platform-object-map.*   # object mapping CRUD
 ├── system/
 │   ├── system.module.ts        # Aggregator: Database, Mail
 │   ├── database/
@@ -99,7 +101,7 @@ src/
 | `AccessModule` | `AuthModule`, `UserModule`, `CompanyModule`, `UserCompanyModule`, `InviteModule` | `access/` |
 | `BusinessModule` | `ClientModule`, `CampaignModule` | `business/` |
 | `MediaModule` | `PlatformModule`, `FormatModule`, `GroupingModule` | `media/` |
-| `BridgeModule` | (entities only; no routes yet) | `bridge/` |
+| `BridgeModule` | Catalog, PlatformAccount, PlatformObjectMap | `bridge/` |
 
 ## TypeORM Pattern
 

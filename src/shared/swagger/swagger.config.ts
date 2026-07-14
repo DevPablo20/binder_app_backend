@@ -44,7 +44,11 @@ export function applySwaggerTagGroups(document: OpenAPIObject): OpenAPIObject {
     },
     {
       name: 'Bridge — lake row matching',
-      tags: [],
+      tags: [
+        layerTag(Layer.Bridge, 'Catalog'),
+        layerTag(Layer.Bridge, 'PlatformAccount'),
+        layerTag(Layer.Bridge, 'PlatformObjectMap'),
+      ],
     },
     {
       name: 'System — application mechanics',
