@@ -1,7 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -16,6 +19,7 @@ import { Role } from 'src/shared/role.enum';
 import { layerTag, Layer } from 'src/shared/swagger/layer-tags';
 import { PlatformObjectMapService } from './platform-object-map.service';
 import {
+  BulkDeletePlatformObjectMapsDto,
   BulkUpdatePlatformObjectMapsDto,
   CreatePlatformObjectMapDto,
   PlatformObjectMapDetailDto,
@@ -68,6 +72,21 @@ export class PlatformObjectMapController {
     @CurrentUser() user: UserSignature,
   ): Promise<PlatformObjectMapDetailDto[]> {
     return this.platformObjectMapService.updateMany(dto, user);
+  }
+
+  @Private(Role.Superadmin)
+  @Delete()
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Remover mapeamentos de objetos',
+    description:
+      'Remove mapeamentos em lote (hard delete). Apenas Superadmin.',
+  })
+  deleteMany(
+    @Body() dto: BulkDeletePlatformObjectMapsDto,
+    @CurrentUser() user: UserSignature,
+  ): Promise<void> {
+    return this.platformObjectMapService.deleteMany(dto, user);
   }
 
   @Get(':id')

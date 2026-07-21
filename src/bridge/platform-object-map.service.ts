@@ -11,7 +11,9 @@ import { SubFormat } from 'src/media/format/sub-format.entity';
 import { SubGrouping } from 'src/media/grouping/sub-grouping.entity';
 import { UserSignature } from 'src/access/auth/userSignature.type';
 import { Role } from 'src/shared/role.enum';
+import { PlatformObjectType } from 'src/shared/platform-object-type.enum';
 import {
+  BulkDeletePlatformObjectMapsDto,
   BulkUpdatePlatformObjectMapsDto,
   CreatePlatformObjectMapDto,
   PlatformObjectMapDetailDto,
@@ -19,6 +21,14 @@ import {
   PlatformObjectMapSummaryDto,
   UpdatePlatformObjectMapItemDto,
 } from './platform-object-map.dto';
+
+type EnrichmentRefs = {
+  channel: Channel | null;
+  buyingType: BuyingType | null;
+  format: Format | null;
+  subFormat: SubFormat | null;
+  subGroupings: SubGrouping[];
+};
 
 @Injectable()
 export class PlatformObjectMapService {
@@ -82,6 +92,7 @@ export class PlatformObjectMapService {
 
     const platformAccount = await this.platformAccountRepository.findOne({
       where: { id: dto.platformAccountId },
+      relations: { client: true, platform: true },
     });
     if (!platformAccount) {
       throw new HttpException(
@@ -92,10 +103,13 @@ export class PlatformObjectMapService {
 
     const campaign = await this.campaignRepository.findOne({
       where: { id: dto.campaignId },
+      relations: { client: true },
     });
     if (!campaign) {
       throw new HttpException('Campanha não encontrada', HttpStatus.NOT_FOUND);
     }
+
+    this.assertClientAlignment(platformAccount, campaign);
 
     const refs = await this.resolveOptionalRefs({
       channelId: dto.channelId,
@@ -104,7 +118,11 @@ export class PlatformObjectMapService {
       subFormatId: dto.subFormatId,
       subGroupingIds: dto.subGroupingIds,
       campaignId: campaign.id,
+      platformAccount,
+      objectType: dto.objectType,
     });
+
+    this.assertLevelFields(dto.objectType, refs);
 
     const map = this.mapRepository.create({
       objectType: dto.objectType,
@@ -142,12 +160,12 @@ export class PlatformObjectMapService {
     const maps = await this.mapRepository.find({
       where: { id: In(ids) },
       relations: {
-        platformAccount: true,
-        campaign: true,
-        channel: true,
+        platformAccount: { client: true, platform: true },
+        campaign: { client: true },
+        channel: { platform: true, buyingTypes: true },
         buyingType: true,
         format: true,
-        subFormat: true,
+        subFormat: { format: true },
         subGroupings: true,
       },
     });
@@ -185,6 +203,29 @@ export class PlatformObjectMapService {
     return updated.map((map) => this.toDetailDto(map));
   }
 
+  async deleteMany(
+    dto: BulkDeletePlatformObjectMapsDto,
+    caller: UserSignature,
+  ): Promise<void> {
+    this.assertSuperadmin(caller.role, 'remover mapeamentos de objetos');
+
+    const uniqueIds = [...new Set(dto.ids)];
+    if (uniqueIds.length === 0) return;
+
+    const maps = await this.mapRepository.find({
+      where: { id: In(uniqueIds) },
+    });
+
+    if (maps.length !== uniqueIds.length) {
+      throw new HttpException(
+        'Mapeamento de objeto não encontrado',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    await this.mapRepository.remove(maps);
+  }
+
   private async applyUpdate(
     map: PlatformObjectMap,
     item: UpdatePlatformObjectMapItemDto,
@@ -195,6 +236,7 @@ export class PlatformObjectMapService {
     if (item.campaignId !== undefined) {
       const campaign = await this.campaignRepository.findOne({
         where: { id: item.campaignId },
+        relations: { client: true },
       });
       if (!campaign) {
         throw new HttpException('Campanha não encontrada', HttpStatus.NOT_FOUND);
@@ -202,14 +244,17 @@ export class PlatformObjectMapService {
       map.campaign = campaign;
     }
 
-    const campaignId = map.campaign.id;
+    this.assertClientAlignment(map.platformAccount, map.campaign);
+
     const refs = await this.resolveOptionalRefs({
       channelId: item.channelId,
       buyingTypeId: item.buyingTypeId,
       formatId: item.formatId,
       subFormatId: item.subFormatId,
       subGroupingIds: item.subGroupingIds,
-      campaignId,
+      campaignId: map.campaign.id,
+      platformAccount: map.platformAccount,
+      objectType: map.objectType,
       patchMode: true,
       current: map,
     });
@@ -217,8 +262,22 @@ export class PlatformObjectMapService {
     if (item.channelId !== undefined) map.channel = refs.channel;
     if (item.buyingTypeId !== undefined) map.buyingType = refs.buyingType;
     if (item.formatId !== undefined) map.format = refs.format;
-    if (item.subFormatId !== undefined) map.subFormat = refs.subFormat;
+    if (item.subFormatId !== undefined) {
+      map.subFormat = refs.subFormat;
+      // Infer format from subFormat when only subFormat is patched
+      if (item.formatId === undefined && refs.format) {
+        map.format = refs.format;
+      }
+    }
     if (item.subGroupingIds !== undefined) map.subGroupings = refs.subGroupings;
+
+    this.assertLevelFields(map.objectType, {
+      channel: map.channel ?? null,
+      buyingType: map.buyingType ?? null,
+      format: map.format ?? null,
+      subFormat: map.subFormat ?? null,
+      subGroupings: map.subGroupings ?? [],
+    });
   }
 
   private async resolveOptionalRefs(opts: {
@@ -228,15 +287,11 @@ export class PlatformObjectMapService {
     subFormatId?: string | null;
     subGroupingIds?: string[];
     campaignId: string;
+    platformAccount: PlatformAccount;
+    objectType: PlatformObjectType;
     patchMode?: boolean;
     current?: PlatformObjectMap;
-  }): Promise<{
-    channel: Channel | null;
-    buyingType: BuyingType | null;
-    format: Format | null;
-    subFormat: SubFormat | null;
-    subGroupings: SubGrouping[];
-  }> {
+  }): Promise<EnrichmentRefs> {
     let channel: Channel | null =
       opts.patchMode && opts.current ? (opts.current.channel ?? null) : null;
     let buyingType: BuyingType | null =
@@ -254,12 +309,19 @@ export class PlatformObjectMapService {
       } else {
         const found = await this.channelRepository.findOne({
           where: { id: opts.channelId },
+          relations: { platform: true, buyingTypes: true },
         });
         if (!found) {
           throw new HttpException('Canal não encontrado', HttpStatus.NOT_FOUND);
         }
         channel = found;
       }
+    } else if (channel && !channel.platform) {
+      const found = await this.channelRepository.findOne({
+        where: { id: channel.id },
+        relations: { platform: true, buyingTypes: true },
+      });
+      if (found) channel = found;
     }
 
     if (opts.buyingTypeId !== undefined) {
@@ -299,6 +361,7 @@ export class PlatformObjectMapService {
       } else {
         const found = await this.subFormatRepository.findOne({
           where: { id: opts.subFormatId },
+          relations: { format: true },
         });
         if (!found) {
           throw new HttpException(
@@ -308,6 +371,12 @@ export class PlatformObjectMapService {
         }
         subFormat = found;
       }
+    } else if (subFormat && !subFormat.format) {
+      const found = await this.subFormatRepository.findOne({
+        where: { id: subFormat.id },
+        relations: { format: true },
+      });
+      if (found) subFormat = found;
     }
 
     if (opts.subGroupingIds !== undefined) {
@@ -317,7 +386,114 @@ export class PlatformObjectMapService {
       );
     }
 
+    // Infer format from subFormat when subFormat is set and format is missing
+    if (subFormat && !format) {
+      format = subFormat.format;
+    }
+
+    this.assertChannelPlatform(channel, opts.platformAccount);
+    this.assertBuyingTypeOnChannel(channel, buyingType);
+    this.assertFormatSubFormatConsistency(format, subFormat);
+
     return { channel, buyingType, format, subFormat, subGroupings };
+  }
+
+  private assertClientAlignment(
+    platformAccount: PlatformAccount,
+    campaign: Campaign,
+  ): void {
+    if (campaign.client.id !== platformAccount.client.id) {
+      throw new HttpException(
+        'Campanha não pertence ao cliente da conta de plataforma',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  private assertChannelPlatform(
+    channel: Channel | null,
+    platformAccount: PlatformAccount,
+  ): void {
+    if (!channel) return;
+    if (channel.platform.id !== platformAccount.platform.id) {
+      throw new HttpException(
+        'Canal não pertence à plataforma da conta',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  private assertBuyingTypeOnChannel(
+    channel: Channel | null,
+    buyingType: BuyingType | null,
+  ): void {
+    if (!channel || !buyingType) return;
+    const allowed = (channel.buyingTypes ?? []).some(
+      (bt) => bt.id === buyingType.id,
+    );
+    if (!allowed) {
+      throw new HttpException(
+        'Tipo de compra não é válido para o canal selecionado',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  private assertFormatSubFormatConsistency(
+    format: Format | null,
+    subFormat: SubFormat | null,
+  ): void {
+    if (!format || !subFormat) return;
+    if (subFormat.format.id !== format.id) {
+      throw new HttpException(
+        'Subformato não pertence ao formato selecionado',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  private assertLevelFields(
+    objectType: PlatformObjectType,
+    refs: EnrichmentRefs,
+  ): void {
+    const hasChannel = refs.channel != null;
+    const hasBuyingType = refs.buyingType != null;
+    const hasFormat = refs.format != null;
+    const hasSubFormat = refs.subFormat != null;
+    const hasSubGroupings = refs.subGroupings.length > 0;
+
+    switch (objectType) {
+      case PlatformObjectType.Campaign:
+        if (hasFormat || hasSubFormat || hasSubGroupings) {
+          throw new HttpException(
+            'Mapeamento de campanha não aceita formato, subformato ou subagrupamentos',
+            HttpStatus.BAD_REQUEST,
+          );
+        }
+        if (!hasChannel || !hasBuyingType) {
+          throw new HttpException(
+            'Mapeamento de campanha exige canal e tipo de compra',
+            HttpStatus.BAD_REQUEST,
+          );
+        }
+        break;
+      case PlatformObjectType.AdGroup:
+        if (hasChannel || hasBuyingType || hasFormat || hasSubFormat) {
+          throw new HttpException(
+            'Mapeamento de ad group aceita apenas subagrupamentos',
+            HttpStatus.BAD_REQUEST,
+          );
+        }
+        break;
+      case PlatformObjectType.Ad:
+        if (hasChannel || hasBuyingType || hasSubGroupings) {
+          throw new HttpException(
+            'Mapeamento de ad aceita apenas formato e subformato',
+            HttpStatus.BAD_REQUEST,
+          );
+        }
+        break;
+    }
   }
 
   private async loadSubGroupingsForCampaign(

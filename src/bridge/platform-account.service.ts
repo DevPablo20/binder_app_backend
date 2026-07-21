@@ -2,11 +2,13 @@ import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { FindOptionsWhere, In, Repository } from 'typeorm';
 import { PlatformAccount } from './platform-account.entity';
+import { PlatformObjectMap } from './platform-object-map.entity';
 import { Client } from 'src/business/client/client.entity';
 import { Platform } from 'src/media/platform/platform.entity';
 import { UserSignature } from 'src/access/auth/userSignature.type';
 import { Role } from 'src/shared/role.enum';
 import {
+  BulkDeletePlatformAccountsDto,
   BulkUpdatePlatformAccountsDto,
   CreatePlatformAccountDto,
   PlatformAccountDetailDto,
@@ -140,21 +142,58 @@ export class PlatformAccountService {
       }
     }
 
+    const accountIdsChangingClient: string[] = [];
+
     for (const item of dto.platformAccounts) {
       const account = accountsById.get(item.id)!;
       if (item.name !== undefined) account.name = item.name;
       if (item.isActive !== undefined) account.isActive = item.isActive;
-      if (item.clientId !== undefined) {
+      if (item.clientId !== undefined && item.clientId !== account.client.id) {
+        accountIdsChangingClient.push(account.id);
         account.client = clientsById.get(item.clientId)!;
       }
     }
 
     const updated = await this.platformAccountRepository.manager.transaction(
-      async (manager) =>
-        manager.save(PlatformAccount, [...accountsById.values()]),
+      async (manager) => {
+        if (accountIdsChangingClient.length > 0) {
+          await manager
+            .createQueryBuilder()
+            .delete()
+            .from(PlatformObjectMap)
+            .where('platform_account_id IN (:...ids)', {
+              ids: accountIdsChangingClient,
+            })
+            .execute();
+        }
+        return manager.save(PlatformAccount, [...accountsById.values()]);
+      },
     );
 
     return updated.map((account) => this.toDetailDto(account));
+  }
+
+  async deleteMany(
+    dto: BulkDeletePlatformAccountsDto,
+    caller: UserSignature,
+  ): Promise<void> {
+    this.assertSuperadmin(caller.role, 'remover contas de plataforma');
+
+    const uniqueIds = [...new Set(dto.ids)];
+    if (uniqueIds.length === 0) return;
+
+    const accounts = await this.platformAccountRepository.find({
+      where: { id: In(uniqueIds) },
+    });
+
+    if (accounts.length !== uniqueIds.length) {
+      throw new HttpException(
+        'Conta de plataforma não encontrada',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    await this.platformAccountRepository.remove(accounts);
   }
 
   private assertSuperadmin(userRole: Role, action: string): void {

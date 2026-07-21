@@ -116,3 +116,10 @@ export class PlatformAccountQueryDto {
   @IsBoolean()
   isActive?: boolean;
 }
+
+export class BulkDeletePlatformAccountsDto {
+  @ApiProperty({ type: [String] })
+  @IsArray()
+  @IsUUID('4', { each: true })
+  ids: string[];
+}

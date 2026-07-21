@@ -1,7 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -16,6 +19,7 @@ import { Role } from 'src/shared/role.enum';
 import { layerTag, Layer } from 'src/shared/swagger/layer-tags';
 import { PlatformAccountService } from './platform-account.service';
 import {
+  BulkDeletePlatformAccountsDto,
   BulkUpdatePlatformAccountsDto,
   CreatePlatformAccountDto,
   PlatformAccountDetailDto,
@@ -61,7 +65,7 @@ export class PlatformAccountController {
   @ApiOperation({
     summary: 'Editar contas de plataforma',
     description:
-      'Atualiza uma ou mais contas em lote, incluindo desativação via isActive. Apenas Superadmin.',
+      'Atualiza uma ou mais contas em lote, incluindo desativação via isActive. Ao mudar o cliente, remove os PlatformObjectMap filhos. Apenas Superadmin.',
   })
   updateMany(
     @Body() dto: BulkUpdatePlatformAccountsDto,
@@ -70,10 +74,26 @@ export class PlatformAccountController {
     return this.platformAccountService.updateMany(dto, user);
   }
 
+  @Private(Role.Superadmin)
+  @Delete()
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Remover contas de plataforma',
+    description:
+      'Remove contas em lote. Cascateia a exclusão dos PlatformObjectMap filhos. Apenas Superadmin.',
+  })
+  deleteMany(
+    @Body() dto: BulkDeletePlatformAccountsDto,
+    @CurrentUser() user: UserSignature,
+  ): Promise<void> {
+    return this.platformAccountService.deleteMany(dto, user);
+  }
+
   @Get(':id')
   @ApiOperation({
     summary: 'Detalhe da conta de plataforma',
-    description: 'Retorna detalhes de uma conta Bridge. Qualquer usuário autenticado.',
+    description:
+      'Retorna detalhes de uma conta Bridge. Qualquer usuário autenticado.',
   })
   findOne(
     @Param('id', ParseUUIDPipe) id: string,

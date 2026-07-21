@@ -196,3 +196,10 @@ export class PlatformObjectMapQueryDto {
   @IsBoolean()
   isActive?: boolean;
 }
+
+export class BulkDeletePlatformObjectMapsDto {
+  @ApiProperty({ type: [String] })
+  @IsArray()
+  @IsUUID('4', { each: true })
+  ids: string[];
+}
