@@ -425,7 +425,7 @@ erDiagram
 
 | | |
 |---|---|
-| **Business role** | Campaign-scoped strategic dimension type (Territory, Theme). Options vary per campaign. |
+| **Business role** | Campaign-scoped strategic dimension type (Territory, Theme). Options vary per campaign. Scoped to Binder campaign intentionally so every ETL object mapped under that campaign can reuse the same dimensions. |
 | **Source file** | `src/media/grouping/grouping.entity.ts` |
 | **Module** | `src/media/grouping/grouping.module.ts` |
 
@@ -486,7 +486,7 @@ erDiagram
 
 | | |
 |---|---|
-| **Business role** | Links a client's platform ad account to Binder. ETL `account_id` joins here to resolve client, company, and platform context. |
+| **Business role** | Links a client's platform ad account to Binder. ETL `account_id` joins here to resolve client, company, and platform context. One account maps to exactly one client. |
 | **Source file** | `src/bridge/platform-account.entity.ts` |
 | **Module** | `src/bridge/bridge.module.ts` |
 
@@ -511,15 +511,21 @@ erDiagram
 
 **ETL join:** `facts.account_id` → `platform_account.external_account_id` (scoped by platform).
 
+**API / lifecycle** (`platform-account.service.ts`):
+
+- CRUD via `GET/POST/PATCH /bridge/platform-accounts`; bulk hard-delete via `DELETE /bridge/platform-accounts` body `{ ids }` (Superadmin). Deleting an account cascades child `PlatformObjectMap` rows (FK `ON DELETE CASCADE`).
+- Changing `clientId` on update **hard-deletes all child maps first**, then saves the new client (maps must not outlive the account–client binding).
+
 ---
 
 ### PlatformObjectMap
 
 | | |
 |---|---|
-| **Business role** | Maps one platform object (campaign, ad set, or ad) to a Binder campaign and optional media/strategic labels. Core ETL enrichment row. |
+| **Business role** | Maps one platform object (campaign, ad set, or ad) to a Binder campaign and level-appropriate media/strategic labels. Core ETL enrichment row. Flat — **no parent object FK**; hierarchy is resolved from lake IDs at join time. |
 | **Source file** | `src/bridge/platform-object-map.entity.ts` |
 | **Module** | `src/bridge/bridge.module.ts` |
+| **Service rules** | `src/bridge/platform-object-map.service.ts` — `assertLevelFields`, client/channel/buyingType/format integrity helpers |
 
 **Key fields**
 
@@ -530,10 +536,21 @@ erDiagram
 | `externalName` | Optional platform object name for ops UI |
 | `isActive` | Soft-disable without deleting mapping history |
 | `platformAccount` | Parent account scope |
-| `campaign` | Target Binder campaign (required) |
-| `channel` / `buyingType` / `format` / `subFormat` | Optional media enrichment |
-| `subGroupings` | Optional strategic tags (M:N) |
+| `campaign` | Target Binder campaign (**required** on every level) |
+| `channel` / `buyingType` | Campaign-level enrichment (required when `objectType = campaign`) |
+| `format` / `subFormat` | Ad-level enrichment (optional when `objectType = ad`) |
+| `subGroupings` | Ad-group strategic tags (optional M:N when `objectType = ad_group`) |
 | `createdAt` / `updatedAt` | Audit timestamps |
+
+**Enrichment by `objectType`** (service-enforced):
+
+| `objectType` | Allowed |
+|--------------|---------|
+| `campaign` | `channel` + `buyingType` required; reject format / subFormat / subGroupings |
+| `ad_group` | optional `subGroupings`; reject channel / buyingType / format / subFormat |
+| `ad` | optional format / subFormat; reject channel / buyingType / subGroupings |
+
+**Integrity:** Binder campaign client must match platform account client; channel must belong to account’s platform; buying type must be allowed on that channel; subFormat must belong to format; subgroupings must belong to the Binder campaign’s groupings.
 
 **Relationships**
 
@@ -541,13 +558,15 @@ erDiagram
 |----------------|------|-------------|-----------------|
 | PlatformAccount | ManyToOne | PlatformObjectMap (`platform_account_id` FK) | Map scoped to one platform account |
 | Campaign | ManyToOne | PlatformObjectMap (`campaign_id` FK) | Every map targets one Binder campaign |
-| Channel | ManyToOne | PlatformObjectMap (`channel_id` FK) | Optional channel label |
-| BuyingType | ManyToOne | PlatformObjectMap (`buying_type_id` FK) | Optional buying model used |
-| Format | ManyToOne | PlatformObjectMap (`format_id` FK) | Optional creative format |
-| SubFormat | ManyToOne | PlatformObjectMap (`sub_format_id` FK) | Optional sub-format |
-| SubGrouping | ManyToMany | PlatformObjectMap (`platform_object_map_sub_grouping`) | Optional strategic tags |
+| Channel | ManyToOne | PlatformObjectMap (`channel_id` FK) | Channel label (campaign level) |
+| BuyingType | ManyToOne | PlatformObjectMap (`buying_type_id` FK) | Buying model (campaign level) |
+| Format | ManyToOne | PlatformObjectMap (`format_id` FK) | Creative format (ad level) |
+| SubFormat | ManyToOne | PlatformObjectMap (`sub_format_id` FK) | Sub-format (ad level) |
+| SubGrouping | ManyToMany | PlatformObjectMap (`platform_object_map_sub_grouping`) | Strategic tags (ad_group level) |
 
-**ETL join:** match `external_id` + `object_type` + `platform_account_id`. Resolve most-specific level first: ad → ad_group → campaign.
+**ETL join:** match `external_id` + `object_type` + `platform_account_id`. Resolve most-specific level first: ad → ad_group → campaign (coalesce enrichment for dashboards).
+
+**API:** `GET/POST/PATCH /bridge/platform-object-maps`; bulk hard-delete via `DELETE /bridge/platform-object-maps` body `{ ids }` (Superadmin).
 
 **Enum:** `PlatformObjectType` in `src/shared/platform-object-type.enum.ts`.
 

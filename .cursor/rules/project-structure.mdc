@@ -64,8 +64,8 @@ src/
 │   ├── bridge.module.ts
 │   ├── catalog-api.client.ts   # HTTP client → binder_etl /catalog/{key}
 │   ├── catalog.*               # enriched lake catalog discovery
-│   ├── platform-account.*      # account association CRUD
-│   └── platform-object-map.*   # object mapping CRUD
+│   ├── platform-account.*      # account CRUD + bulk DELETE; client change cascades maps
+│   └── platform-object-map.*   # object mapping CRUD + bulk DELETE; level-aware validation
 ├── system/
 │   ├── system.module.ts        # Aggregator: Database, Mail
 │   ├── database/
@@ -101,7 +101,7 @@ src/
 | `AccessModule` | `AuthModule`, `UserModule`, `CompanyModule`, `UserCompanyModule`, `InviteModule` | `access/` |
 | `BusinessModule` | `ClientModule`, `CampaignModule` | `business/` |
 | `MediaModule` | `PlatformModule`, `FormatModule`, `GroupingModule` | `media/` |
-| `BridgeModule` | Catalog, PlatformAccount, PlatformObjectMap | `bridge/` |
+| `BridgeModule` | Catalog, PlatformAccount, PlatformObjectMap (CRUD + bulk DELETE) | `bridge/` |
 
 ## TypeORM Pattern
 
