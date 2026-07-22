@@ -70,7 +70,7 @@ flowchart TB
 | **Access** | Who can use the system; company-scoped permissions and onboarding | `User`, `Company`, `UserCompany`, `Invite` | Implemented |
 | **Business** | Organizational spine: contracts and initiatives under a company | `Client`, `Campaign` | Implemented (entities only) |
 | **Media** | Reference catalog of internal vocabulary for classifying ads (defines *possible* labels, not instance mappings) | `Platform`, `Channel`, `BuyingType`, `Format`, `SubFormat`, `Grouping`, `SubGrouping` | Implemented (entities only) |
-| **Bridge** | Match lake rows (platform-native IDs from ETL) to Binder meaning | `PlatformAccount`, `PlatformObjectMap` | Implemented (entities only) |
+| **Bridge** | Match lake rows (platform-native IDs from ETL) to Binder meaning | `PlatformAccount`, `PlatformObjectMap` | Implemented |
 
 ### Access Layer
 
@@ -82,7 +82,7 @@ flowchart TB
 
 - Answers: *what contract and initiative does this data belong to?*
 - Hierarchy: `Company → Client → Campaign` (e.g. Binder-DF → Caixa → Mega da Virada 2025).
-- Must **not** store platform-native IDs (`campaign_id`, `ad_set_id`, `ad_id`) on `Campaign` — that belongs in Bridge.
+- Must **not** store platform-native IDs (`campaign_id`, `ad_group_id`, `ad_id`) on `Campaign` — that belongs in Bridge.
 
 ### Media Layer
 
@@ -95,10 +95,22 @@ flowchart TB
 ### Bridge Layer
 
 - Answers: *which lake row maps to which Binder campaign and optional media/strategic labels?*
-- `PlatformAccount`: platform + client + `external_account_id` (IDs are unique per account).
-- `PlatformObjectMap`: `object_type` (`campaign` | `ad_set` | `ad`) + `external_id` → `binder_campaign_id`; optional FKs to `Channel`, `BuyingType`, `Format`, `SubFormat`; subgroupings via junction.
-- Lake join key: `(platform_account, object_type, external_id)`. Resolve most-specific level first: ad → ad_set → campaign.
+- `PlatformAccount`: platform + client + `external_account_id` (IDs are unique per platform). One account belongs to exactly one client.
+- `PlatformObjectMap`: flat enrichment row — **no parent FK**. ETL hierarchy (`account → campaign → ad_group → ad`) lives in the lake/catalog; Bridge stores per-level labels only.
+- Lake join key: `(platform_account, object_type, external_id)`. Dashboard coalesce: resolve most-specific level first — ad → ad_group → campaign.
 - Must **not** redefine business or taxonomy rules — only **reference** them via FKs.
+
+**Enrichment by `object_type`** (enforced in `platform-object-map.service.ts`, not by schema alone):
+
+| `object_type` | Allowed enrichment |
+|---------------|-------------------|
+| `campaign` | Binder `campaign` + `channel` + `buyingType` **required**; reject format / subFormat / subGroupings |
+| `ad_group` | Binder `campaign` required; optional `subGroupings`; reject channel / buyingType / format / subFormat |
+| `ad` | Binder `campaign` required; optional format / subFormat (Format HTTP API may still be pending); reject channel / buyingType / subGroupings |
+
+**Integrity checks** (create/update): `campaign.client` = `platformAccount.client`; `channel.platform` = account platform; buying type must belong to that channel; `subFormat.format` = selected format; subgroupings must belong to the Binder campaign.
+
+**Hard-delete:** bulk `DELETE` accounts (FK cascades child maps) and maps; changing an account’s `clientId` deletes all child `PlatformObjectMap` rows first.
 
 ## Layer Boundaries (Do Not Cross)
 

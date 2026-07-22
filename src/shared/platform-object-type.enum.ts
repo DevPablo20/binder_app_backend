@@ -1,5 +1,5 @@
 export enum PlatformObjectType {
   Campaign = 'campaign',
-  AdSet = 'ad_set',
+  AdGroup = 'ad_group',
   Ad = 'ad',
 }

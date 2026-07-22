@@ -21,6 +21,15 @@ export class Platform {
   })
   name: string;
 
+  @Column({
+    name: 'catalog_key',
+    type: 'character varying',
+    length: 64,
+    unique: true,
+    nullable: true,
+  })
+  catalogKey?: string | null;
+
   @Column({ name: 'description', type: 'character varying' })
   description: string;
 

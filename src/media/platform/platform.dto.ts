@@ -18,6 +18,12 @@ export class PlatformSummaryDto {
   @ApiProperty()
   name: string;
 
+  @ApiPropertyOptional({
+    description: 'ETL lake catalog slug (e.g. tiktok, google, meta)',
+    nullable: true,
+  })
+  catalogKey?: string | null;
+
   @ApiProperty()
   isActive: boolean;
 }
@@ -45,6 +51,15 @@ export class CreatePlatformDto {
   @IsNotEmpty()
   description: string;
 
+  @ApiPropertyOptional({
+    description: 'ETL lake catalog slug (e.g. tiktok, google, meta)',
+  })
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(64)
+  catalogKey?: string;
+
   @ApiPropertyOptional({ default: true })
   @IsOptional()
   @IsBoolean()
@@ -64,6 +79,15 @@ export class UpdatePlatformDto {
   @IsString()
   @IsNotEmpty()
   description?: string;
+
+  @ApiPropertyOptional({
+    description: 'ETL lake catalog slug (e.g. tiktok, google, meta)',
+    nullable: true,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  catalogKey?: string | null;
 
   @ApiPropertyOptional()
   @IsOptional()
