@@ -21,6 +21,7 @@ import {
   SEED_CLIENT_NAME,
   SEED_FORMATS,
   SEED_GROUPINGS,
+  SEED_PLATFORM_CATALOG_KEY,
   SEED_PLATFORM_DESCRIPTION,
   SEED_PLATFORM_NAME,
 } from './seed-data';
@@ -57,9 +58,14 @@ export async function seedMedia(dataSource: DataSource): Promise<void> {
   const platform = await upsertByUniqueName(
     platformRepository,
     SEED_PLATFORM_NAME,
-    { description: SEED_PLATFORM_DESCRIPTION, isActive: true },
+    {
+      description: SEED_PLATFORM_DESCRIPTION,
+      catalogKey: SEED_PLATFORM_CATALOG_KEY,
+      isActive: true,
+    },
     (entity) => {
       entity.description = SEED_PLATFORM_DESCRIPTION;
+      entity.catalogKey = SEED_PLATFORM_CATALOG_KEY;
       entity.isActive = true;
     },
     'Plataforma',

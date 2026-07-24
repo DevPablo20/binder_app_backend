@@ -19,6 +19,7 @@ import { Role } from 'src/shared/role.enum';
 import { layerTag, Layer } from 'src/shared/swagger/layer-tags';
 import { PlatformAccountService } from './platform-account.service';
 import {
+  BulkCreatePlatformAccountsDto,
   BulkDeletePlatformAccountsDto,
   BulkUpdatePlatformAccountsDto,
   CreatePlatformAccountDto,
@@ -58,6 +59,20 @@ export class PlatformAccountController {
     @CurrentUser() user: UserSignature,
   ): Promise<PlatformAccountDetailDto> {
     return this.platformAccountService.create(dto, user);
+  }
+
+  @Private(Role.Superadmin)
+  @Post('bulk')
+  @ApiOperation({
+    summary: 'Associar contas de plataforma em lote',
+    description:
+      'Cria o produto cartesiano contas × clientes para uma plataforma. Apenas Superadmin.',
+  })
+  createMany(
+    @Body() dto: BulkCreatePlatformAccountsDto,
+    @CurrentUser() user: UserSignature,
+  ): Promise<PlatformAccountDetailDto[]> {
+    return this.platformAccountService.createMany(dto, user);
   }
 
   @Private(Role.Superadmin)

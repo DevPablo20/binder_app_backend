@@ -8,6 +8,7 @@ import { Platform } from 'src/media/platform/platform.entity';
 import { UserSignature } from 'src/access/auth/userSignature.type';
 import { Role } from 'src/shared/role.enum';
 import {
+  BulkCreatePlatformAccountsDto,
   BulkDeletePlatformAccountsDto,
   BulkUpdatePlatformAccountsDto,
   CreatePlatformAccountDto,
@@ -90,12 +91,60 @@ export class PlatformAccountService {
       await this.platformAccountRepository.save(account);
     } catch {
       throw new HttpException(
-        'Conta já associada para esta plataforma',
+        'Conta já associada a este cliente nesta plataforma',
         HttpStatus.CONFLICT,
       );
     }
 
     return this.toDetailDto(account);
+  }
+
+  async createMany(
+    dto: BulkCreatePlatformAccountsDto,
+    caller: UserSignature,
+  ): Promise<PlatformAccountDetailDto[]> {
+    this.assertSuperadmin(caller.role, 'criar contas de plataforma');
+
+    const uniqueClientIds = [...new Set(dto.clientIds)];
+    const [platform, clients] = await Promise.all([
+      this.platformRepository.findOne({ where: { id: dto.platformId } }),
+      this.clientRepository.find({ where: { id: In(uniqueClientIds) } }),
+    ]);
+
+    if (!platform) {
+      throw new HttpException('Plataforma não encontrada', HttpStatus.NOT_FOUND);
+    }
+    if (clients.length !== uniqueClientIds.length) {
+      throw new HttpException('Cliente não encontrado', HttpStatus.NOT_FOUND);
+    }
+
+    const clientsById = new Map(clients.map((client) => [client.id, client]));
+    const accountsToCreate = dto.accounts.flatMap((account) =>
+      uniqueClientIds.map((clientId) =>
+        this.platformAccountRepository.create({
+          externalAccountId: account.externalAccountId,
+          name: account.name,
+          isActive: dto.isActive ?? true,
+          client: clientsById.get(clientId)!,
+          platform,
+        }),
+      ),
+    );
+
+    try {
+      const saved = await this.platformAccountRepository.save(accountsToCreate);
+      const withRelations = await this.platformAccountRepository.find({
+        where: { id: In(saved.map((account) => account.id)) },
+        relations: { client: true, platform: true },
+        order: { name: 'ASC' },
+      });
+      return withRelations.map((account) => this.toDetailDto(account));
+    } catch {
+      throw new HttpException(
+        'Uma ou mais contas já estão associadas a estes clientes nesta plataforma',
+        HttpStatus.CONFLICT,
+      );
+    }
   }
 
   async updateMany(
@@ -212,7 +261,9 @@ export class PlatformAccountService {
       name: account.name,
       isActive: account.isActive,
       clientId: account.client.id,
+      clientName: account.client.name,
       platformId: account.platform.id,
+      platformName: account.platform.name,
     };
   }
 
