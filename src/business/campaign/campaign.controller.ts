@@ -23,7 +23,6 @@ import { layerTag, Layer } from 'src/shared/swagger/layer-tags';
 
 @ApiTags(layerTag(Layer.Business, 'Campaign'))
 @ApiCookieAuth()
-@Private(Role.Superadmin)
 @Controller('business/campaigns')
 export class CampaignController {
   constructor(private readonly campaignService: CampaignService) {}
@@ -31,12 +30,14 @@ export class CampaignController {
   @Get()
   @ApiOperation({
     summary: 'Listar campanhas',
-    description: 'Lista todas as campanhas. Apenas Superadmin.',
+    description:
+      'Lista campanhas. Superadmin: todas. Demais papéis: empresas vinculadas.',
   })
   findAll(@CurrentUser() user: UserSignature): Promise<CampaignSummaryDto[]> {
     return this.campaignService.findAll(user);
   }
 
+  @Private(Role.Superadmin)
   @Post()
   @ApiOperation({
     summary: 'Criar campanha',
@@ -49,6 +50,7 @@ export class CampaignController {
     return this.campaignService.create(dto, user);
   }
 
+  @Private(Role.Superadmin)
   @Patch()
   @ApiOperation({
     summary: 'Editar campanhas',
@@ -65,7 +67,8 @@ export class CampaignController {
   @Get(':id')
   @ApiOperation({
     summary: 'Detalhe da campanha',
-    description: 'Retorna detalhes de uma campanha. Apenas Superadmin.',
+    description:
+      'Retorna detalhes de uma campanha. Superadmin: qualquer. Demais: empresas vinculadas.',
   })
   findOne(
     @Param('id', ParseUUIDPipe) id: string,

@@ -23,8 +23,6 @@ export class SubGroupingService {
   ) {}
 
   async findAll(caller: UserSignature): Promise<SubGroupingSummaryDto[]> {
-    this.assertMinRole(caller.role, Role.Editor, 'listar sub-agrupamentos');
-
     const qb = this.subGroupingRepository
       .createQueryBuilder('subGrouping')
       .innerJoinAndSelect('subGrouping.grouping', 'grouping')
@@ -49,8 +47,6 @@ export class SubGroupingService {
     id: string,
     caller: UserSignature,
   ): Promise<SubGroupingDetailDto> {
-    this.assertMinRole(caller.role, Role.Editor, 'consultar sub-agrupamento');
-
     const subGrouping = await this.subGroupingRepository.findOne({
       where: { id },
       relations: {

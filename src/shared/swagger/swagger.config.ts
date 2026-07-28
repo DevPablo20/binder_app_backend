@@ -7,7 +7,7 @@ export function buildSwaggerConfig() {
     .setDescription(
       'Metadata and mappings for the marketing data lake. ' +
         'Layers: Access (permissions) → Business (Client/Campaign) → ' +
-        'Media (catalog) → Bridge (platform ID matching).',
+        'Media (catalog) → Bridge (platform ID matching) → Analytics (facts ⋈ Bridge).',
     )
     .setVersion('1.0')
     .build();
@@ -49,6 +49,10 @@ export function applySwaggerTagGroups(document: OpenAPIObject): OpenAPIObject {
         layerTag(Layer.Bridge, 'PlatformAccount'),
         layerTag(Layer.Bridge, 'PlatformObjectMap'),
       ],
+    },
+    {
+      name: 'Analytics — dashboard metrics',
+      tags: [layerTag(Layer.Analytics, 'Metrics')],
     },
     {
       name: 'System — application mechanics',

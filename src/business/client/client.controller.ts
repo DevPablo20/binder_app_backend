@@ -23,7 +23,6 @@ import { layerTag, Layer } from 'src/shared/swagger/layer-tags';
 
 @ApiTags(layerTag(Layer.Business, 'Client'))
 @ApiCookieAuth()
-@Private(Role.Superadmin)
 @Controller('business/clients')
 export class ClientController {
   constructor(private readonly clientService: ClientService) {}
@@ -31,12 +30,14 @@ export class ClientController {
   @Get()
   @ApiOperation({
     summary: 'Listar clientes',
-    description: 'Lista todos os clientes. Apenas Superadmin.',
+    description:
+      'Lista clientes. Superadmin: todos. Demais papéis: empresas vinculadas.',
   })
   findAll(@CurrentUser() user: UserSignature): Promise<ClientSummaryDto[]> {
     return this.clientService.findAll(user);
   }
 
+  @Private(Role.Superadmin)
   @Post()
   @ApiOperation({
     summary: 'Criar cliente',
@@ -49,6 +50,7 @@ export class ClientController {
     return this.clientService.create(dto, user);
   }
 
+  @Private(Role.Superadmin)
   @Patch()
   @ApiOperation({
     summary: 'Editar clientes',
@@ -65,7 +67,8 @@ export class ClientController {
   @Get(':id')
   @ApiOperation({
     summary: 'Detalhe do cliente',
-    description: 'Retorna detalhes de um cliente. Apenas Superadmin.',
+    description:
+      'Retorna detalhes de um cliente. Superadmin: qualquer. Demais: empresas vinculadas.',
   })
   findOne(
     @Param('id', ParseUUIDPipe) id: string,

@@ -22,25 +22,38 @@ export class ClientService {
   ) {}
 
   async findAll(caller: UserSignature): Promise<ClientSummaryDto[]> {
-    this.assertSuperadmin(caller.role, 'listar clientes');
+    const qb = this.clientRepository
+      .createQueryBuilder('client')
+      .innerJoinAndSelect('client.company', 'company')
+      .orderBy('client.name', 'ASC');
 
-    const clients = await this.clientRepository.find({
-      relations: { company: true },
-      order: { name: 'ASC' },
-    });
+    if (caller.role !== Role.Superadmin) {
+      if (caller.companyIds.length === 0) {
+        return [];
+      }
+      qb.andWhere('company.id IN (:...companyIds)', {
+        companyIds: caller.companyIds,
+      });
+    }
 
+    const clients = await qb.getMany();
     return clients.map((client) => this.toSummaryDto(client));
   }
 
   async findOne(id: string, caller: UserSignature): Promise<ClientDetailDto> {
-    this.assertSuperadmin(caller.role, 'consultar cliente');
-
     const client = await this.clientRepository.findOne({
       where: { id },
       relations: { company: true },
     });
 
     if (!client) {
+      throw new HttpException('Cliente não encontrado', HttpStatus.NOT_FOUND);
+    }
+
+    if (
+      caller.role !== Role.Superadmin &&
+      !caller.companyIds.includes(client.company.id)
+    ) {
       throw new HttpException('Cliente não encontrado', HttpStatus.NOT_FOUND);
     }
 

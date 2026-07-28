@@ -71,6 +71,13 @@ flowchart TB
 | **Business** | Organizational spine: contracts and initiatives under a company | `Client`, `Campaign` | Implemented (entities only) |
 | **Media** | Reference catalog of internal vocabulary for classifying ads (defines *possible* labels, not instance mappings) | `Platform`, `Channel`, `BuyingType`, `Format`, `SubFormat`, `Grouping`, `SubGrouping` | Implemented (entities only) |
 | **Bridge** | Match lake rows (platform-native IDs from ETL) to Binder meaning | `PlatformAccount`, `PlatformObjectMap` | Implemented |
+| **Analytics** | Serve dashboard metrics: landed gold facts ⋈ Bridge at query time | `AdsDailyMetrics` (read-only) | Implemented |
+
+### Analytics Layer
+
+- Answers: *what are the performance numbers for this Binder filter set?*
+- Reads `analytics.ads_daily_metrics` (ETL-landed, platform IDs only) and joins Bridge / Business / Media.
+- Must **not** own mappings — Bridge remains SSOT for enrichment.
 
 ### Access Layer
 

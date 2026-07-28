@@ -17,6 +17,7 @@ export const SEED_BUYING_TYPES = [
 ] as const;
 
 export const SEED_PLATFORM_NAME = 'TikTok';
+export const SEED_PLATFORM_CATALOG_KEY = 'tiktok';
 export const SEED_PLATFORM_DESCRIPTION =
   'TikTok Ads — short-form video advertising for awareness, engagement, and performance';
 

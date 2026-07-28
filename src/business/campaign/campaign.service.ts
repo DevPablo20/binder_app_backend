@@ -22,25 +22,38 @@ export class CampaignService {
   ) {}
 
   async findAll(caller: UserSignature): Promise<CampaignSummaryDto[]> {
-    this.assertSuperadmin(caller.role, 'listar campanhas');
+    const qb = this.campaignRepository
+      .createQueryBuilder('campaign')
+      .innerJoinAndSelect('campaign.client', 'client')
+      .orderBy('campaign.name', 'ASC');
 
-    const campaigns = await this.campaignRepository.find({
-      relations: { client: true },
-      order: { name: 'ASC' },
-    });
+    if (caller.role !== Role.Superadmin) {
+      if (caller.companyIds.length === 0) {
+        return [];
+      }
+      qb.andWhere('client.company_id IN (:...companyIds)', {
+        companyIds: caller.companyIds,
+      });
+    }
 
+    const campaigns = await qb.getMany();
     return campaigns.map((campaign) => this.toSummaryDto(campaign));
   }
 
   async findOne(id: string, caller: UserSignature): Promise<CampaignDetailDto> {
-    this.assertSuperadmin(caller.role, 'consultar campanha');
-
     const campaign = await this.campaignRepository.findOne({
       where: { id },
-      relations: { client: true },
+      relations: { client: { company: true } },
     });
 
     if (!campaign) {
+      throw new HttpException('Campanha não encontrada', HttpStatus.NOT_FOUND);
+    }
+
+    if (
+      caller.role !== Role.Superadmin &&
+      !caller.companyIds.includes(campaign.client.company.id)
+    ) {
       throw new HttpException('Campanha não encontrada', HttpStatus.NOT_FOUND);
     }
 

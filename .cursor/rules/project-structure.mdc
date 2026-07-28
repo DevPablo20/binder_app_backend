@@ -66,6 +66,10 @@ src/
 │   ├── catalog.*               # enriched lake catalog discovery
 │   ├── platform-account.*      # account CRUD + bulk DELETE; client change cascades maps
 │   └── platform-object-map.*   # object mapping CRUD + bulk DELETE; level-aware validation
+├── analytics/
+│   ├── analytics.module.ts
+│   ├── ads-daily-metrics.entity.ts  # analytics.ads_daily_metrics (ETL-landed)
+│   └── analytics.*                  # GET /analytics/metrics — facts ⋈ Bridge
 ├── system/
 │   ├── system.module.ts        # Aggregator: Database, Mail
 │   ├── database/
@@ -102,6 +106,7 @@ src/
 | `BusinessModule` | `ClientModule`, `CampaignModule` | `business/` |
 | `MediaModule` | `PlatformModule`, `FormatModule`, `GroupingModule` | `media/` |
 | `BridgeModule` | Catalog, PlatformAccount, PlatformObjectMap (CRUD + bulk DELETE) | `bridge/` |
+| `AnalyticsModule` | Metrics (facts ⋈ Bridge at query time) | `analytics/` |
 
 ## TypeORM Pattern
 

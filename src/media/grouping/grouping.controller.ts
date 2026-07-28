@@ -23,7 +23,6 @@ import { layerTag, Layer } from 'src/shared/swagger/layer-tags';
 
 @ApiTags(layerTag(Layer.Media, 'Grouping'))
 @ApiCookieAuth()
-@Private(Role.Editor, Role.Superadmin)
 @Controller('media/groupings')
 export class GroupingController {
   constructor(private readonly groupingService: GroupingService) {}
@@ -32,12 +31,13 @@ export class GroupingController {
   @ApiOperation({
     summary: 'Listar agrupamentos',
     description:
-      'Lista agrupamentos acessíveis ao usuário. Editor: empresas vinculadas. Superadmin: todos.',
+      'Lista agrupamentos acessíveis. Superadmin: todos. Demais: empresas vinculadas.',
   })
   findAll(@CurrentUser() user: UserSignature): Promise<GroupingSummaryDto[]> {
     return this.groupingService.findAll(user);
   }
 
+  @Private(Role.Editor, Role.Superadmin)
   @Post()
   @ApiOperation({
     summary: 'Criar agrupamento',
@@ -51,6 +51,7 @@ export class GroupingController {
     return this.groupingService.create(dto, user);
   }
 
+  @Private(Role.Editor, Role.Superadmin)
   @Patch()
   @ApiOperation({
     summary: 'Editar agrupamentos',
@@ -67,7 +68,8 @@ export class GroupingController {
   @Get(':id')
   @ApiOperation({
     summary: 'Detalhe do agrupamento',
-    description: 'Retorna detalhes de um agrupamento. Editor e Superadmin.',
+    description:
+      'Retorna detalhes de um agrupamento acessível ao usuário autenticado.',
   })
   findOne(
     @Param('id', ParseUUIDPipe) id: string,

@@ -23,7 +23,6 @@ import { layerTag, Layer } from 'src/shared/swagger/layer-tags';
 
 @ApiTags(layerTag(Layer.Media, 'SubGrouping'))
 @ApiCookieAuth()
-@Private(Role.Editor, Role.Superadmin)
 @Controller('media/sub-groupings')
 export class SubGroupingController {
   constructor(private readonly subGroupingService: SubGroupingService) {}
@@ -32,7 +31,7 @@ export class SubGroupingController {
   @ApiOperation({
     summary: 'Listar sub-agrupamentos',
     description:
-      'Lista sub-agrupamentos acessíveis ao usuário. Editor: empresas vinculadas. Superadmin: todos.',
+      'Lista sub-agrupamentos acessíveis. Superadmin: todos. Demais: empresas vinculadas.',
   })
   findAll(
     @CurrentUser() user: UserSignature,
@@ -40,6 +39,7 @@ export class SubGroupingController {
     return this.subGroupingService.findAll(user);
   }
 
+  @Private(Role.Editor, Role.Superadmin)
   @Post()
   @ApiOperation({
     summary: 'Criar sub-agrupamentos',
@@ -53,6 +53,7 @@ export class SubGroupingController {
     return this.subGroupingService.createMany(dto, user);
   }
 
+  @Private(Role.Editor, Role.Superadmin)
   @Patch()
   @ApiOperation({
     summary: 'Editar sub-agrupamentos',
@@ -69,7 +70,8 @@ export class SubGroupingController {
   @Get(':id')
   @ApiOperation({
     summary: 'Detalhe do sub-agrupamento',
-    description: 'Retorna detalhes de um sub-agrupamento. Editor e Superadmin.',
+    description:
+      'Retorna detalhes de um sub-agrupamento acessível ao usuário autenticado.',
   })
   findOne(
     @Param('id', ParseUUIDPipe) id: string,
