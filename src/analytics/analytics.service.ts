@@ -56,9 +56,13 @@ export class AnalyticsService {
 
     const groupBy = query.groupBy ?? this.resolveAutoGroupBy(query);
     const needsSubGroupingDim = groupBy === AnalyticsGroupBy.SubGrouping;
+    const reportDateSql = this.reportDateSql();
 
     const params: unknown[] = [from, to];
-    const where: string[] = ['f.date >= $1::date', 'f.date <= $2::date'];
+    const where: string[] = [
+      `${reportDateSql} >= $1::date`,
+      `${reportDateSql} <= $2::date`,
+    ];
 
     this.appendAclAndFilters(where, params, query, caller);
 
@@ -77,13 +81,13 @@ export class AnalyticsService {
 
     const seriesSql = `
       SELECT
-        f.date::text AS group_key,
-        f.date::text AS group_label,
+        ${reportDateSql}::text AS group_key,
+        ${reportDateSql}::text AS group_label,
         ${this.metricSelectSql()}
       ${baseFrom}
       WHERE ${where.join(' AND ')}
-      GROUP BY f.date
-      ORDER BY f.date ASC
+      GROUP BY ${reportDateSql}
+      ORDER BY ${reportDateSql} ASC
     `;
 
     const totalsRows = await this.dataSource.query(totalsSql, params);
@@ -94,7 +98,7 @@ export class AnalyticsService {
       const breakdownFrom = this.buildFromSql({
         joinSubGrouping: needsSubGroupingDim,
       });
-      const dim = this.groupBySql(groupBy);
+      const dim = this.groupBySql(groupBy, reportDateSql);
       const breakdownSql = `
         SELECT
           ${dim.keyExpr} AS group_key,
@@ -228,7 +232,10 @@ export class AnalyticsService {
     }
   }
 
-  private groupBySql(groupBy: AnalyticsGroupBy): {
+  private groupBySql(
+    groupBy: AnalyticsGroupBy,
+    reportDateSql: string,
+  ): {
     keyExpr: string;
     labelExpr: string;
   } {
@@ -248,7 +255,10 @@ export class AnalyticsService {
       case AnalyticsGroupBy.SubGrouping:
         return { keyExpr: 'sg.id::text', labelExpr: 'sg.name' };
       default:
-        return { keyExpr: 'f.date::text', labelExpr: 'f.date::text' };
+        return {
+          keyExpr: `${reportDateSql}::text`,
+          labelExpr: `${reportDateSql}::text`,
+        };
     }
   }
 
@@ -257,10 +267,15 @@ export class AnalyticsService {
       COALESCE(SUM(f.impressions), 0)::bigint AS impressions,
       COALESCE(SUM(f.spend), 0)::numeric AS cost,
       COALESCE(SUM(f.clicks), 0)::bigint AS clicks,
-      COALESCE(SUM(f.video_views), 0)::bigint AS video_views,
+      COALESCE(SUM(f.video_views_2s), 0)::bigint AS video_views,
       COALESCE(SUM(f.video_views_100p), 0)::bigint AS video_views_100p,
       COALESCE(SUM(f.engagement), 0)::bigint AS engagement
     `;
+  }
+
+  private reportDateSql(): string {
+    // TikTok landed dates are currently one day behind the source UI.
+    return "CASE WHEN f.platform = 'tiktok' THEN (f.date + INTERVAL '1 day')::date ELSE f.date END";
   }
 
   private toMetricBlock(row: Partial<AggRow>): MetricBlockDto {
@@ -285,6 +300,7 @@ export class AnalyticsService {
       cpvc: this.safeDiv(cost, videoViews100p),
       cpe: this.safeDiv(cost, engagement),
       ctr: this.safeDiv(clicks, impressions),
+      vtr: this.safeDiv(videoViews, impressions),
       vtrc: this.safeDiv(videoViews100p, impressions),
       er: this.safeDiv(engagement, impressions),
     };
@@ -312,12 +328,19 @@ export class AnalyticsService {
   }
 
   private defaultTo(): string {
-    return new Date().toISOString().slice(0, 10);
+    return this.formatDateOnly(new Date());
   }
 
   private defaultFrom(): string {
     const d = new Date();
-    d.setUTCDate(d.getUTCDate() - 29);
-    return d.toISOString().slice(0, 10);
+    d.setDate(d.getDate() - 29);
+    return this.formatDateOnly(d);
+  }
+
+  private formatDateOnly(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
 }

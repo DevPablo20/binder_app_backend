@@ -1,10 +1,17 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
-  IsDateString,
+  ArrayMaxSize,
+  IsArray,
   IsEnum,
+  IsIn,
+  IsNotEmpty,
   IsOptional,
+  IsString,
   IsUUID,
+  Matches,
+  MaxLength,
+  ValidateNested,
 } from 'class-validator';
 
 export enum AnalyticsGroupBy {
@@ -58,14 +65,14 @@ export class AnalyticsMetricsQueryDto {
     description: 'Inclusive start date (YYYY-MM-DD). Default: 29 days ago.',
   })
   @IsOptional()
-  @IsDateString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
   from?: string;
 
   @ApiPropertyOptional({
     description: 'Inclusive end date (YYYY-MM-DD). Default: today.',
   })
   @IsOptional()
-  @IsDateString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
   to?: string;
 
   @ApiPropertyOptional({
@@ -123,6 +130,9 @@ export class MetricBlockDto {
   ctr: number | null;
 
   @ApiPropertyOptional({ nullable: true })
+  vtr: number | null;
+
+  @ApiPropertyOptional({ nullable: true })
   vtrc: number | null;
 
   @ApiPropertyOptional({ nullable: true })
@@ -147,4 +157,46 @@ export class AnalyticsMetricsResponseDto {
 
   @ApiProperty({ type: [MetricBlockDto] })
   breakdown: MetricBlockDto[];
+}
+
+export class AnalyticsChatMessageDto {
+  @ApiProperty({ enum: ['user', 'model'] })
+  @IsIn(['user', 'model'])
+  role: 'user' | 'model';
+
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(8000)
+  content: string;
+}
+
+export class AnalyticsChatRequestDto {
+  @ApiProperty({ description: 'Pergunta do usuário sobre métricas/insights' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(4000)
+  message: string;
+
+  @ApiPropertyOptional({ type: [AnalyticsChatMessageDto] })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(20)
+  @ValidateNested({ each: true })
+  @Type(() => AnalyticsChatMessageDto)
+  history?: AnalyticsChatMessageDto[];
+
+  @ApiPropertyOptional({
+    type: AnalyticsMetricsQueryDto,
+    description: 'Filtros atuais do dashboard usados como contexto padrão',
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => AnalyticsMetricsQueryDto)
+  context?: AnalyticsMetricsQueryDto;
+}
+
+export class AnalyticsChatResponseDto {
+  @ApiProperty()
+  reply: string;
 }
