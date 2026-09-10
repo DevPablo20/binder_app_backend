@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  ArrayMinSize,
   IsArray,
   IsBoolean,
   IsEnum,
@@ -33,13 +34,40 @@ export class PlatformObjectMapSummaryDto {
   platformAccountId: string;
 
   @ApiProperty()
+  externalAccountId: string;
+
+  @ApiProperty()
+  accountName: string;
+
+  @ApiProperty()
+  platformId: string;
+
+  @ApiProperty()
+  platformName: string;
+
+  @ApiProperty()
+  clientId: string;
+
+  @ApiProperty()
+  clientName: string;
+
+  @ApiProperty()
   campaignId: string;
+
+  @ApiProperty()
+  campaignName: string;
 
   @ApiPropertyOptional({ nullable: true })
   channelId?: string | null;
 
   @ApiPropertyOptional({ nullable: true })
+  channelName?: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
   buyingTypeId?: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  buyingTypeName?: string | null;
 
   @ApiPropertyOptional({ nullable: true })
   formatId?: string | null;
@@ -83,6 +111,72 @@ export class CreatePlatformObjectMapDto {
   @IsString()
   @MaxLength(255)
   externalName?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  channelId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  buyingTypeId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  formatId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  subFormatId?: string;
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  subGroupingIds?: string[];
+
+  @ApiPropertyOptional({ default: true })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+}
+
+export class BulkCreatePlatformObjectMapItemDto {
+  @ApiProperty()
+  @IsUUID()
+  platformAccountId: string;
+
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(255)
+  externalId: string;
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  externalName?: string | null;
+}
+
+export class BulkCreatePlatformObjectMapsDto {
+  @ApiProperty({ enum: PlatformObjectType })
+  @IsEnum(PlatformObjectType)
+  objectType: PlatformObjectType;
+
+  @ApiProperty()
+  @IsUUID()
+  campaignId: string;
+
+  @ApiProperty({ type: [BulkCreatePlatformObjectMapItemDto] })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => BulkCreatePlatformObjectMapItemDto)
+  items: BulkCreatePlatformObjectMapItemDto[];
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -179,6 +273,11 @@ export class PlatformObjectMapQueryDto {
   @IsOptional()
   @IsUUID()
   platformAccountId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  platformId?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

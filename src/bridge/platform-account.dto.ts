@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  ArrayMinSize,
   IsArray,
   IsBoolean,
   IsNotEmpty,
@@ -28,7 +29,13 @@ export class PlatformAccountSummaryDto {
   clientId: string;
 
   @ApiProperty()
+  clientName: string;
+
+  @ApiProperty()
   platformId: string;
+
+  @ApiProperty()
+  platformName: string;
 }
 
 export class PlatformAccountDetailDto extends PlatformAccountSummaryDto {
@@ -59,6 +66,44 @@ export class CreatePlatformAccountDto {
   @ApiProperty()
   @IsUUID()
   platformId: string;
+
+  @ApiPropertyOptional({ default: true })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+}
+
+export class BulkCreatePlatformAccountItemDto {
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(255)
+  externalAccountId: string;
+
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(255)
+  name: string;
+}
+
+export class BulkCreatePlatformAccountsDto {
+  @ApiProperty()
+  @IsUUID()
+  platformId: string;
+
+  @ApiProperty({ type: [BulkCreatePlatformAccountItemDto] })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => BulkCreatePlatformAccountItemDto)
+  accounts: BulkCreatePlatformAccountItemDto[];
+
+  @ApiProperty({ type: [String] })
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsUUID('4', { each: true })
+  clientIds: string[];
 
   @ApiPropertyOptional({ default: true })
   @IsOptional()

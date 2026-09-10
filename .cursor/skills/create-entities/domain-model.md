@@ -486,7 +486,7 @@ erDiagram
 
 | | |
 |---|---|
-| **Business role** | Links a client's platform ad account to Binder. ETL `account_id` joins here to resolve client, company, and platform context. One account maps to exactly one client. |
+| **Business role** | Links a client's platform ad account to Binder. ETL `account_id` joins here to resolve client, company, and platform context. The same ad account may serve **more than one client** — a real agency case — so it yields one row per client. |
 | **Source file** | `src/bridge/platform-account.entity.ts` |
 | **Module** | `src/bridge/bridge.module.ts` |
 
@@ -494,10 +494,10 @@ erDiagram
 
 | Field | Business meaning |
 |-------|------------------|
-| `externalAccountId` | Platform-native account ID from ETL (unique per platform) |
+| `externalAccountId` | Platform-native account ID from ETL (unique per platform **+ client**) |
 | `name` | Human-readable label (e.g. "Caixa Google Ads") |
 | `isActive` | Whether this account mapping is active |
-| `client` | Owning client account |
+| `client` | Client this row binds the account to (same account may have sibling rows for other clients) |
 | `platform` | Which platform catalog applies |
 | `createdAt` / `updatedAt` | Audit timestamps |
 
@@ -505,15 +505,18 @@ erDiagram
 
 | Related entity | Type | Owning side | Business reason |
 |----------------|------|-------------|-----------------|
-| Client | ManyToOne | PlatformAccount (`client_id` FK) | Account belongs to one client |
+| Client | ManyToOne | PlatformAccount (`client_id` FK) | Each row binds the account to one client; the account may repeat across clients |
 | Platform | ManyToOne | PlatformAccount (`platform_id` FK) | Account runs on one platform |
 | PlatformObjectMap | OneToMany | PlatformObjectMap (`platform_account_id` FK) | Account has zero or more object maps |
 
-**ETL join:** `facts.account_id` → `platform_account.external_account_id` (scoped by platform).
+**Uniqueness:** `UNIQUE (platform_id, external_account_id, client_id)` — the same `external_account_id` may appear once per client on a platform.
+
+**ETL join:** `facts.account_id` → `platform_account.external_account_id` (scoped by platform). With shared accounts this resolves to **one row per client**; the Binder campaign on the map disambiguates which client a lake row belongs to.
 
 **API / lifecycle** (`platform-account.service.ts`):
 
 - CRUD via `GET/POST/PATCH /bridge/platform-accounts`; bulk hard-delete via `DELETE /bridge/platform-accounts` body `{ ids }` (Superadmin). Deleting an account cascades child `PlatformObjectMap` rows (FK `ON DELETE CASCADE`).
+- Bulk create via `POST /bridge/platform-accounts/bulk` body `{ platformId, accounts[], clientIds[] }` — writes the cartesian product accounts × clients (Superadmin).
 - Changing `clientId` on update **hard-deletes all child maps first**, then saves the new client (maps must not outlive the account–client binding).
 
 ---
@@ -567,6 +570,9 @@ erDiagram
 **ETL join:** match `external_id` + `object_type` + `platform_account_id`. Resolve most-specific level first: ad → ad_group → campaign (coalesce enrichment for dashboards).
 
 **API:** `GET/POST/PATCH /bridge/platform-object-maps`; bulk hard-delete via `DELETE /bridge/platform-object-maps` body `{ ids }` (Superadmin).
+
+- `GET` filters: `platformAccountId`, `platformId`, `campaignId`, `objectType`, `isActive`. Summary rows carry **names** alongside ids (account, platform, client, campaign, channel, buying type) so ops UIs never render raw UUIDs.
+- Bulk create via `POST /bridge/platform-object-maps/bulk` body `{ objectType, campaignId, items[], …enrichment }` (Superadmin) — enrichment is shared by the batch and validated once; every item still passes the client/channel/buying-type/level checks.
 
 **Enum:** `PlatformObjectType` in `src/shared/platform-object-type.enum.ts`.
 

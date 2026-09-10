@@ -13,6 +13,7 @@ import { UserSignature } from 'src/access/auth/userSignature.type';
 import { Role } from 'src/shared/role.enum';
 import { PlatformObjectType } from 'src/shared/platform-object-type.enum';
 import {
+  BulkCreatePlatformObjectMapsDto,
   BulkDeletePlatformObjectMapsDto,
   BulkUpdatePlatformObjectMapsDto,
   CreatePlatformObjectMapDto,
@@ -21,6 +22,17 @@ import {
   PlatformObjectMapSummaryDto,
   UpdatePlatformObjectMapItemDto,
 } from './platform-object-map.dto';
+
+// Relations required to build a summary/detail DTO — names come from these.
+const SUMMARY_RELATIONS = {
+  platformAccount: { client: true, platform: true },
+  campaign: true,
+  channel: true,
+  buyingType: true,
+  format: true,
+  subFormat: true,
+  subGroupings: true,
+} as const;
 
 type EnrichmentRefs = {
   channel: Channel | null;
@@ -55,8 +67,11 @@ export class PlatformObjectMapService {
     query: PlatformObjectMapQueryDto,
   ): Promise<PlatformObjectMapSummaryDto[]> {
     const where: FindOptionsWhere<PlatformObjectMap> = {};
-    if (query.platformAccountId) {
-      where.platformAccount = { id: query.platformAccountId };
+    if (query.platformAccountId || query.platformId) {
+      where.platformAccount = {
+        ...(query.platformAccountId ? { id: query.platformAccountId } : {}),
+        ...(query.platformId ? { platform: { id: query.platformId } } : {}),
+      };
     }
     if (query.campaignId) where.campaign = { id: query.campaignId };
     if (query.objectType) where.objectType = query.objectType;
@@ -64,15 +79,7 @@ export class PlatformObjectMapService {
 
     const maps = await this.mapRepository.find({
       where,
-      relations: {
-        platformAccount: true,
-        campaign: true,
-        channel: true,
-        buyingType: true,
-        format: true,
-        subFormat: true,
-        subGroupings: true,
-      },
+      relations: SUMMARY_RELATIONS,
       order: { createdAt: 'DESC' },
     });
 
@@ -150,6 +157,99 @@ export class PlatformObjectMapService {
     return this.toDetailDto(await this.findWithRelations(map.id));
   }
 
+  async createMany(
+    dto: BulkCreatePlatformObjectMapsDto,
+    caller: UserSignature,
+  ): Promise<PlatformObjectMapDetailDto[]> {
+    this.assertSuperadmin(caller.role, 'criar mapeamentos de objetos');
+
+    const accountIds = [
+      ...new Set(dto.items.map((item) => item.platformAccountId)),
+    ];
+
+    const [campaign, accounts] = await Promise.all([
+      this.campaignRepository.findOne({
+        where: { id: dto.campaignId },
+        relations: { client: true },
+      }),
+      this.platformAccountRepository.find({
+        where: { id: In(accountIds) },
+        relations: { client: true, platform: true },
+      }),
+    ]);
+
+    if (!campaign) {
+      throw new HttpException('Campanha não encontrada', HttpStatus.NOT_FOUND);
+    }
+    if (accounts.length !== accountIds.length) {
+      throw new HttpException(
+        'Conta de plataforma não encontrada',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    for (const account of accounts) {
+      this.assertClientAlignment(account, campaign);
+    }
+
+    // Enrichment is shared by the whole batch, so resolve it once.
+    const refs = await this.resolveOptionalRefs({
+      channelId: dto.channelId,
+      buyingTypeId: dto.buyingTypeId,
+      formatId: dto.formatId,
+      subFormatId: dto.subFormatId,
+      subGroupingIds: dto.subGroupingIds,
+      campaignId: campaign.id,
+      platformAccount: accounts[0],
+      objectType: dto.objectType,
+    });
+
+    // resolveOptionalRefs only checked the first account's platform.
+    for (const account of accounts.slice(1)) {
+      this.assertChannelPlatform(refs.channel, account);
+    }
+
+    this.assertLevelFields(dto.objectType, refs);
+
+    const accountsById = new Map(
+      accounts.map((account) => [account.id, account]),
+    );
+
+    const maps = dto.items.map((item) =>
+      this.mapRepository.create({
+        objectType: dto.objectType,
+        externalId: item.externalId,
+        externalName: item.externalName ?? null,
+        isActive: dto.isActive ?? true,
+        platformAccount: accountsById.get(item.platformAccountId)!,
+        campaign,
+        channel: refs.channel,
+        buyingType: refs.buyingType,
+        format: refs.format,
+        subFormat: refs.subFormat,
+        subGroupings: refs.subGroupings,
+      }),
+    );
+
+    let saved: PlatformObjectMap[];
+    try {
+      saved = await this.mapRepository.save(maps);
+    } catch {
+      throw new HttpException(
+        'Um ou mais objetos já estão mapeados para esta conta e tipo',
+        HttpStatus.CONFLICT,
+      );
+    }
+
+    const withRelations = await this.mapRepository.find({
+      where: { id: In(saved.map((map) => map.id)) },
+      relations: SUMMARY_RELATIONS,
+      order: { createdAt: 'DESC' },
+    });
+
+    return withRelations.map((map) => this.toDetailDto(map));
+  }
+
   async updateMany(
     dto: BulkUpdatePlatformObjectMapsDto,
     caller: UserSignature,
@@ -189,15 +289,7 @@ export class PlatformObjectMapService {
 
     const updated = await this.mapRepository.find({
       where: { id: In(ids) },
-      relations: {
-        platformAccount: true,
-        campaign: true,
-        channel: true,
-        buyingType: true,
-        format: true,
-        subFormat: true,
-        subGroupings: true,
-      },
+      relations: SUMMARY_RELATIONS,
     });
 
     return updated.map((map) => this.toDetailDto(map));
@@ -530,15 +622,7 @@ export class PlatformObjectMapService {
   private async findWithRelations(id: string): Promise<PlatformObjectMap> {
     const map = await this.mapRepository.findOne({
       where: { id },
-      relations: {
-        platformAccount: true,
-        campaign: true,
-        channel: true,
-        buyingType: true,
-        format: true,
-        subFormat: true,
-        subGroupings: true,
-      },
+      relations: SUMMARY_RELATIONS,
     });
 
     if (!map) {
@@ -568,9 +652,18 @@ export class PlatformObjectMapService {
       externalName: map.externalName ?? null,
       isActive: map.isActive,
       platformAccountId: map.platformAccount.id,
+      externalAccountId: map.platformAccount.externalAccountId,
+      accountName: map.platformAccount.name,
+      platformId: map.platformAccount.platform.id,
+      platformName: map.platformAccount.platform.name,
+      clientId: map.platformAccount.client.id,
+      clientName: map.platformAccount.client.name,
       campaignId: map.campaign.id,
+      campaignName: map.campaign.name,
       channelId: map.channel?.id ?? null,
+      channelName: map.channel?.name ?? null,
       buyingTypeId: map.buyingType?.id ?? null,
+      buyingTypeName: map.buyingType?.name ?? null,
       formatId: map.format?.id ?? null,
       subFormatId: map.subFormat?.id ?? null,
       subGroupingIds: (map.subGroupings ?? []).map((sg) => sg.id),
