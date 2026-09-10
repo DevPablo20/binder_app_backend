@@ -95,7 +95,7 @@ flowchart TB
 ### Bridge Layer
 
 - Answers: *which lake row maps to which Binder campaign and optional media/strategic labels?*
-- `PlatformAccount`: platform + client + `external_account_id` (IDs are unique per platform). One account belongs to exactly one client.
+- `PlatformAccount`: platform + client + `external_account_id`, unique on **all three** together. The same ad account may be shared by more than one client (real agency case: one advertiser account serving several contracts), so one `external_account_id` yields one row **per client**.
 - `PlatformObjectMap`: flat enrichment row — **no parent FK**. ETL hierarchy (`account → campaign → ad_group → ad`) lives in the lake/catalog; Bridge stores per-level labels only.
 - Lake join key: `(platform_account, object_type, external_id)`. Dashboard coalesce: resolve most-specific level first — ad → ad_group → campaign.
 - Must **not** redefine business or taxonomy rules — only **reference** them via FKs.
@@ -109,6 +109,8 @@ flowchart TB
 | `ad` | Binder `campaign` required; optional format / subFormat (Format HTTP API may still be pending); reject channel / buyingType / subGroupings |
 
 **Integrity checks** (create/update): `campaign.client` = `platformAccount.client`; `channel.platform` = account platform; buying type must belong to that channel; `subFormat.format` = selected format; subgroupings must belong to the Binder campaign.
+
+**Bulk create:** `POST /bridge/platform-accounts/bulk` writes the cartesian product accounts × clients for one platform. `POST /bridge/platform-object-maps/bulk` maps many lake objects to one Binder campaign sharing the same enrichment — level rules and integrity checks apply to every item.
 
 **Hard-delete:** bulk `DELETE` accounts (FK cascades child maps) and maps; changing an account’s `clientId` deletes all child `PlatformObjectMap` rows first.
 

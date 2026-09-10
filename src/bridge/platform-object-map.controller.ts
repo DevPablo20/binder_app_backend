@@ -19,6 +19,7 @@ import { Role } from 'src/shared/role.enum';
 import { layerTag, Layer } from 'src/shared/swagger/layer-tags';
 import { PlatformObjectMapService } from './platform-object-map.service';
 import {
+  BulkCreatePlatformObjectMapsDto,
   BulkDeletePlatformObjectMapsDto,
   BulkUpdatePlatformObjectMapsDto,
   CreatePlatformObjectMapDto,
@@ -58,6 +59,21 @@ export class PlatformObjectMapController {
     @CurrentUser() user: UserSignature,
   ): Promise<PlatformObjectMapDetailDto> {
     return this.platformObjectMapService.create(dto, user);
+  }
+
+  @Private(Role.Superadmin)
+  @Post('bulk')
+  @ApiOperation({
+    summary: 'Associar objetos de plataforma em lote',
+    description:
+      'Mapeia vários objetos do lake (campaign/ad_group/ad) a uma campanha Binder, ' +
+      'compartilhando o mesmo enriquecimento. Apenas Superadmin.',
+  })
+  createMany(
+    @Body() dto: BulkCreatePlatformObjectMapsDto,
+    @CurrentUser() user: UserSignature,
+  ): Promise<PlatformObjectMapDetailDto[]> {
+    return this.platformObjectMapService.createMany(dto, user);
   }
 
   @Private(Role.Superadmin)
