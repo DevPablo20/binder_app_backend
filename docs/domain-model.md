@@ -1,45 +1,68 @@
-# Domain Model
+# Modelo de domínio
 
-Living reference for what each entity means in **binder_app_backend** and why relationships exist. Read this before designing new entities or relations.
+Referência viva do que cada entidade significa em **binder_app_backend** e por que os
+relacionamentos existem. Leia antes de desenhar entidade ou relação nova.
 
-**Maintenance rule:** update this file whenever a new entity or relationship is added or changed. Do not skip — agents and developers rely on it for business context.
+**Regra de manutenção:** atualize este arquivo sempre que uma entidade ou relacionamento for
+criado ou alterado. Agentes e pessoas dependem dele para o contexto de negócio.
 
-## Domain Overview
+Invariantes de arquitetura: [../CLAUDE.md](../CLAUDE.md). Modelo Bridge alvo e DDL:
+[architecture.md](architecture.md).
 
-The app uses a **multi-company access model** and a **layered data-lake brain** architecture:
+## Visão geral
 
-- **Access layer** — who can use the system (`User`, `Company`, `UserCompany`, `Invite`)
-- **Business layer** — organizational spine (`Company → Client → Campaign`)
-- **Media layer** — reference catalogs for classifying ads (`Platform`, `Channel`, `BuyingType`, `Format`, `SubFormat`, `Grouping`, `SubGrouping`)
-- **Bridge layer** — maps platform-native IDs from ETL to Binder meaning (`PlatformAccount`, `PlatformObjectMap`)
+Modelo de acesso multi-empresa sobre uma arquitetura em camadas:
 
-Authentication is user-scoped (one login, one JWT); company access is resolved on every request from active `UserCompany` memberships.
+- **Access** — quem pode usar o sistema (`User`, `Company`, `UserCompany`, `Invite`)
+- **Business** — espinha organizacional (`Company → Client → Campaign`)
+- **Media** — catálogos de vocabulário (`Platform`, `Channel`, `BuyingType`, `Format`,
+  `SubFormat`, `Grouping`, `SubGrouping`)
+- **Bridge** — liga IDs nativos de plataforma ao significado de negócio
 
-**Catalog scoping:** `Platform`, `Channel`, `BuyingType`, `Format`, `SubFormat` are **global**. `Grouping` / `SubGrouping` are **campaign-scoped** (strategic dimensions vary per campaign).
+Autenticação é por usuário (um login, um JWT); o acesso a empresas é resolvido em cada
+requisição a partir das associações `UserCompany` ativas.
 
-## Entity Relationship Diagram
+**Escopo dos catálogos:** `Platform`, `Channel`, `BuyingType`, `Format`, `SubFormat` são
+**globais**. `Grouping` / `SubGrouping` são **escopados em campanha** — e isso está correto:
+é o que faz uma campanha com três plataformas compartilhar o mesmo vocabulário entre elas.
+
+## Diagrama de relacionamentos
+
+Estado **alvo** desta arquitetura. O código ainda tem `PlatformObjectMap` no lugar das quatro
+tabelas de Bridge — ver [../CLAUDE.md](../CLAUDE.md), seção "Estado desta branch".
 
 ```mermaid
 erDiagram
-    User ||--o{ UserCompany : "has memberships"
-    Company ||--o{ UserCompany : "has members"
-    Company ||--o{ Client : has
-    Client ||--o{ Campaign : has
-    User ||--o{ Invite : "sends"
-    Invite }o--o{ Company : "targets via invite_company"
-    Platform ||--o{ Channel : has
+    User ||--o{ UserCompany : "tem associacoes"
+    Company ||--o{ UserCompany : "tem membros"
+    Company ||--o{ Client : tem
+    Client ||--o{ Campaign : tem
+    User ||--o{ Invite : envia
+    Invite }o--o{ Company : "via invite_company"
+    Platform ||--o{ Channel : tem
     Channel }o--o{ BuyingType : "via channel_buying_type"
-    Format ||--o{ SubFormat : has
-    Campaign ||--o{ Grouping : defines
-    Grouping ||--o{ SubGrouping : has
-    Client ||--o{ PlatformAccount : owns
-    Platform ||--o{ PlatformAccount : scopes
-    PlatformAccount ||--o{ PlatformObjectMap : contains
-    Campaign ||--o{ PlatformObjectMap : targets
-    PlatformObjectMap }o--o{ SubGrouping : "via platform_object_map_sub_grouping"
+    Format ||--o{ SubFormat : tem
+    Campaign ||--o{ Grouping : define
+    Grouping ||--o{ SubGrouping : tem
+    Client ||--o{ PlatformAccount : possui
+    Platform ||--o{ PlatformAccount : escopa
+
+    PlatformAccount ||--o{ PlatformCampaignBinding : contem
+    Campaign ||--o{ PlatformCampaignBinding : "recebe"
+    Channel ||--o{ PlatformCampaignBinding : rotula
+    BuyingType ||--o{ PlatformCampaignBinding : rotula
+
+    PlatformCampaignBinding ||--o{ PlatformAdGroupClassification : "amarra por FK composta"
+    PlatformAdGroupClassification ||--o{ PlatformAdGroupGrouping : atribui
+    SubGrouping ||--o{ PlatformAdGroupGrouping : "valor do eixo"
+
+    PlatformAccount ||--o{ PlatformAdClassification : contem
+    Format ||--o{ PlatformAdClassification : rotula
+    SubFormat ||--o{ PlatformAdClassification : rotula
+    Platform ||--o{ PlatformFormatMapping : traduz
 ```
 
-## Entity Catalog
+## Catálogo de entidades
 
 ### User
 
@@ -354,7 +377,7 @@ erDiagram
 |----------------|------|-------------|-----------------|
 | Channel | ManyToMany | Channel (`channel_buying_type` junction) | Buying type is valid on zero or more channels |
 
-**Note:** Catalog defines what's *possible* on a channel. The actual buying type used on a specific ad is chosen in Bridge (`PlatformObjectMap`).
+**Note:** o catálogo define o que é *possível* num canal. O buying type efetivo é escolhido no Bridge, em `PlatformCampaignBinding` — nível campanha, vindo do plano de mídia (não de `billing_event` da plataforma).
 
 **Seeded by**
 
@@ -507,7 +530,9 @@ erDiagram
 |----------------|------|-------------|-----------------|
 | Client | ManyToOne | PlatformAccount (`client_id` FK) | Each row binds the account to one client; the account may repeat across clients |
 | Platform | ManyToOne | PlatformAccount (`platform_id` FK) | Account runs on one platform |
-| PlatformObjectMap | OneToMany | PlatformObjectMap (`platform_account_id` FK) | Account has zero or more object maps |
+| PlatformCampaignBinding | OneToMany | Binding (`platform_account_id` FK) | Conta contém vínculos de campanha |
+| PlatformAdGroupClassification | OneToMany | Classification (`platform_account_id` FK) | Conta contém classificações de ad group |
+| PlatformAdClassification | OneToMany | Classification (`platform_account_id` FK) | Conta contém exceções de formato |
 
 **Uniqueness:** `UNIQUE (platform_id, external_account_id, client_id)` — the same `external_account_id` may appear once per client on a platform.
 
@@ -515,116 +540,197 @@ erDiagram
 
 **API / lifecycle** (`platform-account.service.ts`):
 
-- CRUD via `GET/POST/PATCH /bridge/platform-accounts`; bulk hard-delete via `DELETE /bridge/platform-accounts` body `{ ids }` (Superadmin). Deleting an account cascades child `PlatformObjectMap` rows (FK `ON DELETE CASCADE`).
+- CRUD via `GET/POST/PATCH /bridge/platform-accounts`; bulk hard-delete via `DELETE /bridge/platform-accounts` body `{ ids }` (Superadmin). Apagar uma conta cascateia as linhas filhas do Bridge (FK `ON DELETE CASCADE`).
 - Bulk create via `POST /bridge/platform-accounts/bulk` body `{ platformId, accounts[], clientIds[] }` — writes the cartesian product accounts × clients (Superadmin).
 - Changing `clientId` on update **hard-deletes all child maps first**, then saves the new client (maps must not outlive the account–client binding).
 
 ---
 
-### PlatformObjectMap
+### PlatformCampaignBinding
 
 | | |
 |---|---|
-| **Business role** | Maps one platform object (campaign, ad set, or ad) to a Binder campaign and level-appropriate media/strategic labels. Core ETL enrichment row. Flat — **no parent object FK**; hierarchy is resolved from lake IDs at join time. |
-| **Source file** | `src/bridge/platform-object-map.entity.ts` |
-| **Module** | `src/bridge/bridge.module.ts` |
-| **Service rules** | `src/bridge/platform-object-map.service.ts` — `assertLevelFields`, client/channel/buyingType/format integrity helpers |
+| **Papel de negócio** | Onde a campanha de negócio **nasce**. Vincula uma campanha nativa da plataforma a uma `Campaign` do Binder e carrega os rótulos de nível campanha. É o único lugar onde `campaign_id` é digitado. |
+| **Arquivo alvo** | `src/bridge/platform-campaign-binding.entity.ts` |
+| **Status** | Não implementado — passo 4 do plano |
 
-**Key fields**
+**Campos**
 
-| Field | Business meaning |
-|-------|------------------|
-| `objectType` | `campaign`, `ad_group`, or `ad` — which platform hierarchy level |
-| `externalId` | Platform-native ID at that level |
-| `externalName` | Optional platform object name for ops UI |
-| `isActive` | Soft-disable without deleting mapping history |
-| `platformAccount` | Parent account scope |
-| `campaign` | Target Binder campaign (**required** on every level) |
-| `channel` / `buyingType` | Campaign-level enrichment (required when `objectType = campaign`) |
-| `format` / `subFormat` | Ad-level enrichment (optional when `objectType = ad`) |
-| `subGroupings` | Ad-group strategic tags (optional M:N when `objectType = ad_group`) |
-| `createdAt` / `updatedAt` | Audit timestamps |
+| Campo | Significado |
+|---|---|
+| `platformAccount` | Escopo da conta (e portanto do cliente e da plataforma) |
+| `externalCampaignId` | ID nativo da campanha na plataforma |
+| `campaign` | Campanha de negócio alvo — `NOT NULL` |
+| `channel` | Canal — `NOT NULL` |
+| `buyingType` | Tipo de compra do plano de mídia — `NOT NULL` |
 
-**Enrichment by `objectType`** (service-enforced):
+**Unicidade:** `UNIQUE (platform_account_id, external_campaign_id)` — também serve de alvo
+para a FK composta vinda de `PlatformAdGroupClassification`.
 
-| `objectType` | Allowed |
-|--------------|---------|
-| `campaign` | `channel` + `buyingType` required; reject format / subFormat / subGroupings |
-| `ad_group` | optional `subGroupings`; reject channel / buyingType / format / subFormat |
-| `ad` | optional format / subFormat; reject channel / buyingType / subGroupings |
-
-**Integrity:** Binder campaign client must match platform account client; channel must belong to account’s platform; buying type must be allowed on that channel; subFormat must belong to format; subgroupings must belong to the Binder campaign’s groupings.
-
-**Relationships**
-
-| Related entity | Type | Owning side | Business reason |
-|----------------|------|-------------|-----------------|
-| PlatformAccount | ManyToOne | PlatformObjectMap (`platform_account_id` FK) | Map scoped to one platform account |
-| Campaign | ManyToOne | PlatformObjectMap (`campaign_id` FK) | Every map targets one Binder campaign |
-| Channel | ManyToOne | PlatformObjectMap (`channel_id` FK) | Channel label (campaign level) |
-| BuyingType | ManyToOne | PlatformObjectMap (`buying_type_id` FK) | Buying model (campaign level) |
-| Format | ManyToOne | PlatformObjectMap (`format_id` FK) | Creative format (ad level) |
-| SubFormat | ManyToOne | PlatformObjectMap (`sub_format_id` FK) | Sub-format (ad level) |
-| SubGrouping | ManyToMany | PlatformObjectMap (`platform_object_map_sub_grouping`) | Strategic tags (ad_group level) |
-
-**ETL join:** match `external_id` + `object_type` + `platform_account_id`. Resolve most-specific level first: ad → ad_group → campaign (coalesce enrichment for dashboards).
-
-**API:** `GET/POST/PATCH /bridge/platform-object-maps`; bulk hard-delete via `DELETE /bridge/platform-object-maps` body `{ ids }` (Superadmin).
-
-- `GET` filters: `platformAccountId`, `platformId`, `campaignId`, `objectType`, `isActive`. Summary rows carry **names** alongside ids (account, platform, client, campaign, channel, buying type) so ops UIs never render raw UUIDs.
-- Bulk create via `POST /bridge/platform-object-maps/bulk` body `{ objectType, campaignId, items[], …enrichment }` (Superadmin) — enrichment is shared by the batch and validated once; every item still passes the client/channel/buying-type/level checks.
-
-**Enum:** `PlatformObjectType` in `src/shared/platform-object-type.enum.ts`.
+**Integridade:** `campaign.client` deve ser igual a `platformAccount.client`;
+`channel.platform` igual à plataforma da conta; o buying type deve ser válido para o canal.
 
 ---
 
-## Relationship Map
+### PlatformAdGroupClassification
 
-| From | To | Type | Junction / FK | Owning side | Business rationale |
-|------|----|------|---------------|-------------|-------------------|
-| User | UserCompany | OneToMany | `user_company.user_id` | UserCompany | User has multiple company memberships |
-| Company | UserCompany | OneToMany | `user_company.company_id` | UserCompany | Company has multiple user memberships |
-| User | Company | ManyToMany (via UserCompany) | `user_company` | UserCompany | Multi-company access with per-link `status` for soft revoke |
-| User | Invite | OneToMany | `invite.invited_by_id` | Invite | User sends zero or more invites |
-| Invite | Company | ManyToMany | `invite_company` | Invite | One invite can target multiple companies in a single flow |
-| Company | Client | OneToMany | `client.company_id` | Client | Company has zero or more client accounts |
-| Client | Campaign | OneToMany | `campaign.client_id` | Campaign | Client has zero or more campaigns |
-| Platform | Channel | OneToMany | `channel.platform_id` | Channel | Platform has zero or more channels |
-| Channel | BuyingType | ManyToMany | `channel_buying_type` | Channel | Channel supports one or more buying types |
-| Format | SubFormat | OneToMany | `sub_format.format_id` | SubFormat | Format has zero or more sub-formats |
-| Campaign | Grouping | OneToMany | `grouping.campaign_id` | Grouping | Campaign defines zero or more strategic dimensions |
-| Grouping | SubGrouping | OneToMany | `sub_grouping.grouping_id` | SubGrouping | Grouping has zero or more values |
-| Client | PlatformAccount | OneToMany | `platform_account.client_id` | PlatformAccount | Client has zero or more platform accounts |
-| Platform | PlatformAccount | OneToMany | `platform_account.platform_id` | PlatformAccount | Platform has zero or more linked accounts |
-| PlatformAccount | PlatformObjectMap | OneToMany | `platform_object_map.platform_account_id` | PlatformObjectMap | Account has zero or more object maps |
-| Campaign | PlatformObjectMap | OneToMany | `platform_object_map.campaign_id` | PlatformObjectMap | Campaign targeted by zero or more maps |
-| PlatformObjectMap | SubGrouping | ManyToMany | `platform_object_map_sub_grouping` | PlatformObjectMap | Map can carry zero or more strategic tags |
+| | |
+|---|---|
+| **Papel de negócio** | Classificação de um ad group nos eixos declarados pela campanha. Não guarda campanha de negócio — alcança por FK composta até o binding. |
+| **Arquivo alvo** | `src/bridge/platform-ad-group-classification.entity.ts` |
+| **Status** | Não implementado — passo 4 do plano |
 
-**Junction table `user_company`**
+**Campos**
 
-- Explicit entity (`UserCompany`) with `id`, `status`, and timestamps
-- `UNIQUE (user_id, company_id)` — one link per user–company pair
-- `status=false` = soft revoke; no re-login required for change to take effect
-- Link example: `src/system/database/seeds/access.seed.ts` (find or create `UserCompany` with `status: true`)
+| Campo | Significado |
+|---|---|
+| `platformAccount` | Escopo da conta |
+| `externalAdGroupId` | ID nativo do ad group |
+| `externalCampaignId` | **Derivado do catálogo, nunca digitado.** Alvo da FK composta |
 
-**Junction table `invite_company`**
+**Unicidade:** `UNIQUE (platform_account_id, external_ad_group_id)`
 
-- Managed by TypeORM `@JoinTable` on `Invite` (no inverse on `Company`)
-- Columns: `invite_id`, `company_id`
-- `UNIQUE (invite_id, company_id)` — one link per invite–company pair
-- No extra fields on junction; invite metadata lives on `Invite` row
+**A amarração:** `FOREIGN KEY (platform_account_id, external_campaign_id) REFERENCES
+platform_campaign_binding (platform_account_id, external_campaign_id)`. Classificar ad group
+de campanha não vinculada é impossível, e não existe segunda cópia da campanha de negócio
+para divergir.
 
-**Junction table `channel_buying_type`**
+---
 
-- Managed by TypeORM `@JoinTable` on `Channel` (inverse on `BuyingType`)
-- Columns: `channel_id`, `buying_type_id`
-- Meaning: which buying models are valid on a channel (catalog only; Bridge picks the actual type per ad)
+### PlatformAdGroupGrouping
 
-**Junction table `platform_object_map_sub_grouping`**
+| | |
+|---|---|
+| **Papel de negócio** | A atribuição de valor de eixo: "ad group 456 tem Território = Canais". Substitui o M2M solto `platform_object_map_sub_grouping`. |
+| **Arquivo alvo** | `src/bridge/platform-ad-group-grouping.entity.ts` |
+| **Status** | Não implementado — passo 4 do plano |
 
-- Managed by TypeORM `@JoinTable` on `PlatformObjectMap` (no inverse on `SubGrouping`)
-- Columns: `platform_object_map_id`, `sub_grouping_id`
-- Meaning: strategic tags applied to a specific platform object mapping
+**Campos**
+
+| Campo | Significado |
+|---|---|
+| `adGroupClassification` | Objeto classificado |
+| `grouping` | O eixo. Desnormalizado de propósito, para viabilizar as duas constraints |
+| `subGrouping` | O valor escolhido nesse eixo |
+
+**Constraints que substituem validação em código**
+
+- `PRIMARY KEY (ad_group_classification_id, grouping_id)` — um único valor por eixo.
+- `FOREIGN KEY (grouping_id, sub_grouping_id) REFERENCES sub_grouping (grouping_id, id)` —
+  o valor pertence ao eixo declarado. Requer `CREATE UNIQUE INDEX ON sub_grouping (grouping_id, id)`.
+
+---
+
+### PlatformAdClassification
+
+| | |
+|---|---|
+| **Papel de negócio** | Formato de um ad. Existe apenas como **exceção** à tradução automática de `ad_format` nativo. |
+| **Arquivo alvo** | `src/bridge/platform-ad-classification.entity.ts` |
+| **Status** | Não implementado — passo 4 do plano |
+
+**Campos**
+
+| Campo | Significado |
+|---|---|
+| `platformAccount` | Escopo da conta |
+| `externalAdId` | ID nativo do ad |
+| `format` / `subFormat` | Sobrescrita manual da tradução |
+
+**Unicidade:** `UNIQUE (platform_account_id, external_ad_id)`
+**Integridade:** `FOREIGN KEY (format_id, sub_format_id) REFERENCES sub_format (format_id, id)`
+
+---
+
+### PlatformFormatMapping
+
+| | |
+|---|---|
+| **Papel de negócio** | Traduz o valor nativo de formato da plataforma para o vocabulário interno. Seis linhas por plataforma em vez de N classificações por ad. |
+| **Arquivo alvo** | `src/bridge/platform-format-mapping.entity.ts` |
+| **Status** | Não implementado — passo 6 do plano |
+
+**Campos**
+
+| Campo | Significado |
+|---|---|
+| `platform` | Plataforma de origem |
+| `nativeValue` | Valor cru, ex.: `CAROUSEL_ADS`, `SINGLE_VIDEO` |
+| `format` / `subFormat` | Destino no vocabulário Binder |
+
+**Unicidade:** `UNIQUE (platform_id, native_value)`
+
+Valor nativo sem tradução **nunca quebra a rodada do ETL**: o ad recebe `'Não mapeado'`, o
+gold carrega o valor cru, e o backend expõe a fila de pendências ordenada por investimento
+afetado.
+
+---
+
+### EnrichmentPublication
+
+| | |
+|---|---|
+| **Papel de negócio** | Congela um snapshot do enriquecimento para o DAG consumir. Configurar não dispara processamento; publicar sim, uma vez para o lote inteiro. |
+| **Arquivo alvo** | `src/bridge/enrichment-publication.entity.ts` |
+| **Status** | Não implementado — passo 7 do plano |
+
+**Campos**
+
+| Campo | Significado |
+|---|---|
+| `publishedAt` / `publishedBy` | Quando e por quem |
+| `status` | `pending` \| `processing` \| `materialized` \| `failed` |
+
+O DAG lê a última publicação `pending`, nunca as tabelas vivas — isso torna a rodada
+reprodutível e dá o rastro de auditoria que o SCD tipo 1 não guarda.
+
+---
+
+### PlatformObjectMap (legado)
+
+Tabela larga com `object_type` e validação em `assertLevelFields`. **Ainda é o código em
+produção**, e sai no passo 10, depois que o gold enriquecido estiver reconciliando. Não
+construa nada novo sobre ela; não a remova antes do passo 10.
+
+---
+
+## Mapa de relacionamentos
+
+| De | Para | Tipo | Junção / FK | Lado dono | Razão |
+|---|---|---|---|---|---|
+| User | UserCompany | OneToMany | `user_company.user_id` | UserCompany | Usuário tem várias associações |
+| Company | UserCompany | OneToMany | `user_company.company_id` | UserCompany | Empresa tem vários membros |
+| User | Invite | OneToMany | `invite.invited_by_id` | Invite | Usuário envia convites |
+| Invite | Company | ManyToMany | `invite_company` | Invite | Um convite pode alvejar várias empresas |
+| Company | Client | OneToMany | `client.company_id` | Client | Empresa tem clientes |
+| Client | Campaign | OneToMany | `campaign.client_id` | Campaign | Cliente tem campanhas |
+| Platform | Channel | OneToMany | `channel.platform_id` | Channel | Plataforma tem canais |
+| Channel | BuyingType | ManyToMany | `channel_buying_type` | Channel | Canal suporta tipos de compra |
+| Format | SubFormat | OneToMany | `sub_format.format_id` | SubFormat | Formato tem subformatos |
+| Campaign | Grouping | OneToMany | `grouping.campaign_id` | Grouping | Campanha declara seus eixos |
+| Grouping | SubGrouping | OneToMany | `sub_grouping.grouping_id` | SubGrouping | Eixo tem valores |
+| Client | PlatformAccount | OneToMany | `platform_account.client_id` | PlatformAccount | Cliente tem contas |
+| Platform | PlatformAccount | OneToMany | `platform_account.platform_id` | PlatformAccount | Plataforma escopa contas |
+| PlatformAccount | PlatformCampaignBinding | OneToMany | `platform_campaign_binding.platform_account_id` | Binding | Conta contém vínculos de campanha |
+| Campaign | PlatformCampaignBinding | OneToMany | `platform_campaign_binding.campaign_id` | Binding | Campanha recebe vários vínculos (Always On) |
+| PlatformCampaignBinding | PlatformAdGroupClassification | OneToMany | FK composta `(platform_account_id, external_campaign_id)` | Classification | **A amarração** |
+| PlatformAdGroupClassification | PlatformAdGroupGrouping | OneToMany | `ad_group_classification_id` | Grouping row | Atribuição de eixo |
+| SubGrouping | PlatformAdGroupGrouping | OneToMany | FK composta `(grouping_id, sub_grouping_id)` | Grouping row | Valor coerente com o eixo |
+| PlatformAccount | PlatformAdClassification | OneToMany | `platform_ad_classification.platform_account_id` | Classification | Exceção de formato |
+| Platform | PlatformFormatMapping | OneToMany | `platform_format_mapping.platform_id` | Mapping | Tradução por plataforma |
+
+**Junção `user_company`** — entidade explícita com `id`, `status` e timestamps.
+`UNIQUE (user_id, company_id)`; `status=false` é revogação suave sem exigir novo login.
+
+**Junção `invite_company`** — `@JoinTable` em `Invite`, sem inverso em `Company`.
+Colunas `invite_id`, `company_id`.
+
+**Junção `channel_buying_type`** — `@JoinTable` em `Channel`, inverso em `BuyingType`.
+Define quais modelos de compra são válidos num canal (catálogo apenas).
+
+**`platform_ad_group_grouping` não é `@ManyToMany`.** A PK composta e a FK composta exigem
+entidade explícita — ver [relationships.md](../.claude/skills/create-entities/relationships.md),
+seção "ManyToMany com colunas extras".
 
 ---
 

@@ -1,11 +1,6 @@
----
-description: Application tech stack, dependency versions, and version-specific best practices
-alwaysApply: true
----
-
 # Tech Stack
 
-NestJS 11 REST API with TypeORM, PostgreSQL, JWT cookie auth, and MailerSend. See [project-structure.mdc](mdc:.cursor/rules/project-structure.mdc) for module layout.
+NestJS 11 REST API with TypeORM, PostgreSQL, JWT cookie auth, and MailerSend. See [project-structure.mdc](project-structure.md) for module layout.
 
 ## Runtime
 
