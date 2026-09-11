@@ -646,7 +646,7 @@ para divergir.
 
 | | |
 |---|---|
-| **Papel de negócio** | Traduz o valor nativo de formato da plataforma para o vocabulário interno. Seis linhas por plataforma em vez de N classificações por ad. |
+| **Papel de negócio** | Traduz o valor nativo de formato da plataforma para o vocabulário interno. Poucas linhas por plataforma (3 no TikTok hoje) em vez de N classificações por ad. |
 | **Arquivo alvo** | `src/bridge/platform-format-mapping.entity.ts` |
 | **Status** | Não implementado — passo 6 do plano |
 
