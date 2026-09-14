@@ -28,8 +28,9 @@ requisição a partir das associações `UserCompany` ativas.
 
 ## Diagrama de relacionamentos
 
-Estado **alvo** desta arquitetura. O código ainda tem `PlatformObjectMap` no lugar das quatro
-tabelas de Bridge — ver [../CLAUDE.md](../CLAUDE.md), seção "Estado desta branch".
+Estado **alvo** desta arquitetura. O código ainda tem `PlatformObjectMap` no lugar das tabelas
+de Bridge — o que existe hoje × alvo está no plano da iniciativa ativa
+(`binder_etl/docs/plans/bridge-enrichment.md`).
 
 ```mermaid
 erDiagram
@@ -552,7 +553,7 @@ erDiagram
 |---|---|
 | **Papel de negócio** | Onde a campanha de negócio **nasce**. Vincula uma campanha nativa da plataforma a uma `Campaign` do Binder e carrega os rótulos de nível campanha. É o único lugar onde `campaign_id` é digitado. |
 | **Arquivo alvo** | `src/bridge/platform-campaign-binding.entity.ts` |
-| **Status** | Não implementado — passo 4 do plano |
+| **Status** | **Alvo** — ainda não existe no código |
 
 **Campos**
 
@@ -578,7 +579,7 @@ para a FK composta vinda de `PlatformAdGroupClassification`.
 |---|---|
 | **Papel de negócio** | Classificação de um ad group nos eixos declarados pela campanha. Não guarda campanha de negócio — alcança por FK composta até o binding. |
 | **Arquivo alvo** | `src/bridge/platform-ad-group-classification.entity.ts` |
-| **Status** | Não implementado — passo 4 do plano |
+| **Status** | **Alvo** — ainda não existe no código |
 
 **Campos**
 
@@ -603,7 +604,7 @@ para divergir.
 |---|---|
 | **Papel de negócio** | A atribuição de valor de eixo: "ad group 456 tem Território = Canais". Substitui o M2M solto `platform_object_map_sub_grouping`. |
 | **Arquivo alvo** | `src/bridge/platform-ad-group-grouping.entity.ts` |
-| **Status** | Não implementado — passo 4 do plano |
+| **Status** | **Alvo** — ainda não existe no código |
 
 **Campos**
 
@@ -627,7 +628,7 @@ para divergir.
 |---|---|
 | **Papel de negócio** | Formato de um ad. Existe apenas como **exceção** à tradução automática de `ad_format` nativo. |
 | **Arquivo alvo** | `src/bridge/platform-ad-classification.entity.ts` |
-| **Status** | Não implementado — passo 4 do plano |
+| **Status** | **Alvo** — ainda não existe no código |
 
 **Campos**
 
@@ -648,7 +649,7 @@ para divergir.
 |---|---|
 | **Papel de negócio** | Traduz o valor nativo de formato da plataforma para o vocabulário interno. Poucas linhas por plataforma (3 no TikTok hoje) em vez de N classificações por ad. |
 | **Arquivo alvo** | `src/bridge/platform-format-mapping.entity.ts` |
-| **Status** | Não implementado — passo 6 do plano |
+| **Status** | **Alvo** — ainda não existe no código |
 
 **Campos**
 
@@ -672,7 +673,7 @@ afetado.
 |---|---|
 | **Papel de negócio** | Congela um snapshot do enriquecimento para o DAG consumir. Configurar não dispara processamento; publicar sim, uma vez para o lote inteiro. |
 | **Arquivo alvo** | `src/bridge/enrichment-publication.entity.ts` |
-| **Status** | Não implementado — passo 7 do plano |
+| **Status** | **Alvo** — ainda não existe no código |
 
 **Campos**
 
@@ -689,8 +690,8 @@ reprodutível e dá o rastro de auditoria que o SCD tipo 1 não guarda.
 ### PlatformObjectMap (legado)
 
 Tabela larga com `object_type` e validação em `assertLevelFields`. **Ainda é o código em
-produção**, e sai no passo 10, depois que o gold enriquecido estiver reconciliando. Não
-construa nada novo sobre ela; não a remova antes do passo 10.
+produção.** Sai só depois que o gold enriquecido estiver reconciliando. Não construa nada
+novo sobre ela, e não a remova fora do plano da iniciativa ativa.
 
 ---
 

@@ -97,18 +97,14 @@ platform_format_mapping
   UNIQUE (platform_id, native_value)
 ```
 
-O TikTok já entrega `ad_format` com cardinalidade baixa: três valores (`SINGLE_VIDEO`,
-`CAROUSEL_ADS` e nulo, este nos posts autorizados) para 675 ads. Poucas traduções por
-plataforma em vez de N classificações por ad — escala com plataformas, não com volume de
-criativos. `platform_ad_classification` passa a existir só quando alguém sobrescreve a
-tradução.
+O TikTok entrega `ad_format` com cardinalidade muito baixa (vídeo, carrossel, e nulo nos
+posts autorizados). Poucas traduções por plataforma em vez de N classificações por ad —
+escala com plataformas, não com volume de criativos. `platform_ad_classification` passa a
+existir só quando alguém sobrescreve a tradução.
 
-Duas pendências antes do passo 6:
-
-- **Formato nulo.** `native_value` é `NOT NULL`, então o ETL precisa emitir um valor explícito
-  para esse caso.
-- **Sub-formato.** `ad_format` distingue vídeo de carrossel, mas não 15s de 30s. A tradução
-  sozinha pode não conseguir preencher `sub_format_id NOT NULL`.
+Duas restrições que o desenho precisa acomodar: `native_value` é `NOT NULL`, mas `ad_format`
+pode vir nulo; e `ad_format` não carrega duração (não separa 15s de 30s), enquanto
+`sub_format_id` é `NOT NULL`.
 
 ## O que sai do código e entra no schema
 
@@ -176,8 +172,7 @@ antigo é rollback trivial.
 
 **Transporte:** o backend expõe `GET /enrichment/publications/pending` e o DAG faz o fetch.
 Simétrico ao `catalog-api` que já existe na direção oposta, sem credencial S3 aqui e sem
-driver JDBC no Spark. São no máximo ~1.100 linhas de JSON hoje (70 campanhas, 350 ad groups,
-675 ads).
+driver JDBC no Spark. O snapshot é da ordem de mil linhas de JSON.
 
 ## Invariante de conservação
 
@@ -188,30 +183,6 @@ Três regras garantem isso: todo join de enriquecimento é `LEFT`; `NULL` vira b
 (`'Não informado'`, categoria legítima que aparece nos gráficos); e a invariante é teste
 automático do pipeline.
 
-## Plano de migração
-
-Ordem por dependência. Passos 0–3 e 8 são do `binder_etl`, 9 do frontend, o resto aqui.
-
-| # | Passo | Repo |
-|---|---|---|
-| 0 | Extração completa no Airbyte e diagnóstico medido — **feito** | etl |
-| 1 | Gold parte do fato: `LEFT JOIN`, chaves do fato, conta derivada de `ads` | etl |
-| 2 | Reduzir `dedupe_columns` à chave natural mínima, inclusive no fato | etl |
-| 3 | Acumular no bronze (defesa contra retenção do raw) | etl |
-| 4 | Criar as tabelas novas do Bridge, índices de apoio e FKs compostas | **backend** |
-| 5 | Migrar dados de `platform_object_map` para as três tabelas | **backend** |
-| 6 | Tabela de tradução de formato + fila de pendências | **backend** |
-| 7 | `enrichment_publication`, snapshot e endpoint | **backend** |
-| 8 | Gold enriquecido: fetch, três `LEFT JOIN`, coluna `MAP`, teste de invariante | etl |
-| 9 | Telas de configuração, alerta de não materializado, card de cobertura | frontend |
-| 10 | Remover `platform_object_map` e `assertLevelFields` | **backend** |
-
-**Passo 5 vai revelar sujeira.** Ao transformar `campaign_id` de digitado em derivado, maps de
-ad apontando para campanha diferente da do ad_group vão bater na FK. Isso é o sistema
-funcionando — trate como relatório a resolver, não como falha do script.
-
-**Passo 10 só depois** do gold enriquecido estar reconciliando.
-
 ## Fora de escopo
 
 | Item | Motivo |
@@ -221,15 +192,3 @@ funcionando — trate como relatório a resolver, não como falha do script.
 | Override de eixo no nível de ad | Herança é pura por decisão; simplicidade escolhida sobre flexibilidade. |
 | Histórico de quando a classificação mudou | SCD tipo 1 por decisão. |
 | Mais de dois níveis de vocabulário | Eixo → valor cobre todos os casos levantados. |
-
-## A verificar
-
-| Verificação | Bloqueia |
-|---|---|
-| Delta em read-modify-write no mesmo caminho — confirmar `.cache()` em execução real | passo 3 |
-
-Resolvidas em 11/09/2026 — diagnóstico completo em `binder_etl/docs/architecture.md`:
-
-- "14 campanhas para 17 advertisers" era extração incompleta. Com deletados incluídos e
-  `start_date` 2025-01-01 são 70 campanhas, e o gold conserva todo o spend.
-- `ad_format` tem 3 valores distintos, não ~6.

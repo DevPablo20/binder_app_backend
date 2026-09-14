@@ -51,7 +51,7 @@ src/
 │   ├── catalog-api.client.ts   # HTTP → binder_etl /catalog/{key}
 │   ├── catalog.*               # descoberta de identidades do lake
 │   ├── platform-account.*      # CRUD + bulk; troca de cliente cascateia filhos
-│   └── platform-object-map.*   # LEGADO — sai no passo 10
+│   └── platform-object-map.*   # LEGADO — substituído pelos arquivos alvo abaixo
 ├── system/
 │   ├── database/               # TypeOrmModule.forRootAsync, migrations, seeds
 │   └── mail/                   # MailService (sem rotas HTTP)
@@ -62,16 +62,16 @@ src/
 
 ### Arquivos alvo no Bridge
 
-Não existem ainda. Criados nos passos 4, 6 e 7 do plano de migração:
+Não existem ainda — modelo alvo, DDL em [architecture.md](architecture.md):
 
 ```
 src/bridge/
-├── platform-campaign-binding.*         # passo 4
-├── platform-ad-group-classification.*  # passo 4
-├── platform-ad-group-grouping.entity.ts# passo 4
-├── platform-ad-classification.*        # passo 4
-├── platform-format-mapping.*           # passo 6
-└── enrichment-publication.*            # passo 7
+├── platform-campaign-binding.*          # nível campaign
+├── platform-ad-group-classification.*   # nível ad_group
+├── platform-ad-group-grouping.entity.ts # atribuição de eixo
+├── platform-ad-classification.*         # exceção de formato no ad
+├── platform-format-mapping.*            # tradução de valor nativo
+└── enrichment-publication.*             # snapshot consumido pelo DAG
 ```
 
 ## Módulos de camada

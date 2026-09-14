@@ -8,20 +8,15 @@ negócio aos fatos do lake.
 o Bridge classifica esses IDs com vocabulário de negócio → o ETL consome a publicação e
 materializa o gold enriquecido → o frontend filtra por coluna.
 
-## Estado desta branch
+## Iniciativa ativa
 
-`arch/bridge-enrichment` reorganiza a documentação para a arquitetura decidida. **O código
-ainda é o antigo.** Ao trabalhar aqui, distinga sempre:
+`bridge-enrichment` — plano único dos três repositórios em
+`binder_etl/docs/plans/bridge-enrichment.md` (repositório irmão): passos, próxima ação,
+decisões em aberto e o que existe hoje × alvo neste repo.
 
-| | Existe hoje no código | Alvo desta arquitetura |
-|---|---|---|
-| Bridge | `PlatformObjectMap` — tabela larga com `object_type` e validação em `assertLevelFields` | 4 tabelas, uma por nível, com as regras em constraint |
-| Campanha de negócio | coluna `campaign_id` digitada em todo nível | derivada por FK composta a partir do binding |
-| Formato | classificação manual por ad | traduzido de `ad_format` nativo; manual só como exceção |
-| Publicação | não existe | snapshot imutável consumido pelo DAG |
-
-Não descreva o alvo como se já existisse, e não "conserte" o código antigo fora do passo
-correspondente do plano. Passos e ordem: [docs/architecture.md](docs/architecture.md).
+**O modelo Bridge alvo ainda não existe no código.** Antes de afirmar que uma entidade ou
+endpoint existe, confira `src/` e a seção "Estado atual × alvo" do plano. Não "conserte" o
+código legado fora do passo correspondente.
 
 ## Camadas
 
@@ -114,10 +109,33 @@ O CLI de migration lê JS compilado de `dist/` — sempre `npm run build` antes 
 
 | Arquivo | Quando ler |
 |---|---|
-| [docs/architecture.md](docs/architecture.md) | modelo Bridge, DDL alvo, plano de migração em 10 passos |
+| [docs/architecture.md](docs/architecture.md) | modelo Bridge, DDL alvo, publicação, fora de escopo |
 | [docs/domain-model.md](docs/domain-model.md) | catálogo de entidades e mapa de relacionamentos |
 | [docs/project-structure.md](docs/project-structure.md) | árvore de diretórios, módulos, Swagger, auth |
 | [docs/tech-stack.md](docs/tech-stack.md) | versões e práticas por biblioteca |
 
 Skill `create-entities` (`.claude/skills/create-entities/`) para criar entidade + migration
 seguindo as convenções do projeto.
+
+## Onde cada informação mora (compartilhado)
+
+| Tipo | Onde |
+|---|---|
+| Regra que vale sempre | `CLAUDE.md` |
+| Como e por que funciona; desenho decidido | `docs/*.md` — no presente, sem data, sem número de passo, volumes em ordem de grandeza |
+| O que falta, status, decisões em aberto, medições datadas | `docs/plans/<iniciativa>.md` |
+| Ideia ainda sem escopo | `docs/plans/backlog.md` |
+
+Iniciativa que envolve mais de um repositório tem um plano só, no repositório onde começou;
+os outros apontam para ele.
+
+Todo passo de uma iniciativa termina com: testes verdes → status e diário atualizados no
+plano → regra nova sobe para o `CLAUDE.md` e mudança de desenho para `docs/` → rótulos
+"alvo"/"legado" que ficaram falsos saem → a checagem abaixo volta vazia. Ao encerrar a
+iniciativa, o plano é apagado e o ponteiro sai do `CLAUDE.md`.
+
+```bash
+grep -rnE "\bpasso [0-9]|\bfeito\b|[0-9]{2}/[0-9]{2}/20[0-9]{2}" CLAUDE.md docs .claude --exclude-dir=plans 2>/dev/null
+```
+
+> Este bloco é espelhado nos três repositórios. Ao mudar, mude nos três.
