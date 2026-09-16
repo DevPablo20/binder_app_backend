@@ -99,11 +99,9 @@ export class BulkCreatePlatformAccountsDto {
   @Type(() => BulkCreatePlatformAccountItemDto)
   accounts: BulkCreatePlatformAccountItemDto[];
 
-  @ApiProperty({ type: [String] })
-  @IsArray()
-  @ArrayMinSize(1)
-  @IsUUID('4', { each: true })
-  clientIds: string[];
+  @ApiProperty()
+  @IsUUID()
+  clientId: string;
 
   @ApiPropertyOptional({ default: true })
   @IsOptional()

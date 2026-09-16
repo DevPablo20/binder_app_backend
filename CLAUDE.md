@@ -85,6 +85,12 @@ DDL completa e o que cada constraint compra: [docs/architecture.md](docs/archite
   nome é editável na plataforma e não serve de chave.
 - **Nunca copie a campanha de negócio** para um nível abaixo do binding. Derive por FK; uma
   segunda cópia é uma divergência esperando acontecer.
+- **Uma conta de plataforma pertence a exatamente um cliente:**
+  `UNIQUE (platform_id, external_account_id)` em `platform_account`. O fato do lake não
+  carrega cliente, então o ETL só consegue casar pelas coordenadas externas — duas linhas
+  para a mesma conta fariam o join do enriquecimento duplicar métrica, contra a invariante 5.
+  O inverso é livre: um cliente pode ter várias contas, inclusive duas cobrindo períodos
+  diferentes da mesma campanha de negócio.
 - **Escritas do Bridge são Superadmin.** `assertSuperadmin` antes de mutação.
 - Validação em DTO com `class-validator`, nunca em entidade. Todo campo exposto no Swagger
   leva `@ApiProperty()`.

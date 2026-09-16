@@ -76,7 +76,10 @@ export class PlatformAccountService {
       throw new HttpException('Cliente não encontrado', HttpStatus.NOT_FOUND);
     }
     if (!platform) {
-      throw new HttpException('Plataforma não encontrada', HttpStatus.NOT_FOUND);
+      throw new HttpException(
+        'Plataforma não encontrada',
+        HttpStatus.NOT_FOUND,
+      );
     }
 
     const account = this.platformAccountRepository.create({
@@ -91,7 +94,7 @@ export class PlatformAccountService {
       await this.platformAccountRepository.save(account);
     } catch {
       throw new HttpException(
-        'Conta já associada a este cliente nesta plataforma',
+        'Conta já associada nesta plataforma',
         HttpStatus.CONFLICT,
       );
     }
@@ -105,30 +108,29 @@ export class PlatformAccountService {
   ): Promise<PlatformAccountDetailDto[]> {
     this.assertSuperadmin(caller.role, 'criar contas de plataforma');
 
-    const uniqueClientIds = [...new Set(dto.clientIds)];
-    const [platform, clients] = await Promise.all([
+    const [platform, client] = await Promise.all([
       this.platformRepository.findOne({ where: { id: dto.platformId } }),
-      this.clientRepository.find({ where: { id: In(uniqueClientIds) } }),
+      this.clientRepository.findOne({ where: { id: dto.clientId } }),
     ]);
 
     if (!platform) {
-      throw new HttpException('Plataforma não encontrada', HttpStatus.NOT_FOUND);
+      throw new HttpException(
+        'Plataforma não encontrada',
+        HttpStatus.NOT_FOUND,
+      );
     }
-    if (clients.length !== uniqueClientIds.length) {
+    if (!client) {
       throw new HttpException('Cliente não encontrado', HttpStatus.NOT_FOUND);
     }
 
-    const clientsById = new Map(clients.map((client) => [client.id, client]));
-    const accountsToCreate = dto.accounts.flatMap((account) =>
-      uniqueClientIds.map((clientId) =>
-        this.platformAccountRepository.create({
-          externalAccountId: account.externalAccountId,
-          name: account.name,
-          isActive: dto.isActive ?? true,
-          client: clientsById.get(clientId)!,
-          platform,
-        }),
-      ),
+    const accountsToCreate = dto.accounts.map((account) =>
+      this.platformAccountRepository.create({
+        externalAccountId: account.externalAccountId,
+        name: account.name,
+        isActive: dto.isActive ?? true,
+        client,
+        platform,
+      }),
     );
 
     try {
@@ -141,7 +143,7 @@ export class PlatformAccountService {
       return withRelations.map((account) => this.toDetailDto(account));
     } catch {
       throw new HttpException(
-        'Uma ou mais contas já estão associadas a estes clientes nesta plataforma',
+        'Uma ou mais contas já estão associadas nesta plataforma',
         HttpStatus.CONFLICT,
       );
     }

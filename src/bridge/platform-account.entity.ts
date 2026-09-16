@@ -14,7 +14,7 @@ import { Platform } from 'src/media/platform/platform.entity';
 import { PlatformObjectMap } from 'src/bridge/platform-object-map.entity';
 
 @Entity({ name: 'platform_account' })
-@Unique(['platform', 'externalAccountId', 'client'])
+@Unique(['platform', 'externalAccountId'])
 export class PlatformAccount {
   @PrimaryGeneratedColumn('uuid', { name: 'id' })
   id: string;

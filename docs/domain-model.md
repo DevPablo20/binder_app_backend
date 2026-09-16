@@ -529,20 +529,20 @@ erDiagram
 
 | Related entity | Type | Owning side | Business reason |
 |----------------|------|-------------|-----------------|
-| Client | ManyToOne | PlatformAccount (`client_id` FK) | Each row binds the account to one client; the account may repeat across clients |
+| Client | ManyToOne | PlatformAccount (`client_id` FK) | The account belongs to exactly one client; a client may own many accounts |
 | Platform | ManyToOne | PlatformAccount (`platform_id` FK) | Account runs on one platform |
 | PlatformCampaignBinding | OneToMany | Binding (`platform_account_id` FK) | Conta contém vínculos de campanha |
 | PlatformAdGroupClassification | OneToMany | Classification (`platform_account_id` FK) | Conta contém classificações de ad group |
 | PlatformAdClassification | OneToMany | Classification (`platform_account_id` FK) | Conta contém exceções de formato |
 
-**Uniqueness:** `UNIQUE (platform_id, external_account_id, client_id)` — the same `external_account_id` may appear once per client on a platform.
+**Uniqueness:** `UNIQUE (platform_id, external_account_id)` — an `external_account_id` appears at most once per platform, so it resolves to exactly one client.
 
-**ETL join:** `facts.account_id` → `platform_account.external_account_id` (scoped by platform). With shared accounts this resolves to **one row per client**; the Binder campaign on the map disambiguates which client a lake row belongs to.
+**ETL join:** `facts.account_id` → `platform_account.external_account_id` (scoped by platform), resolving to **exactly one row**. The lake fact carries no client, so nothing downstream could disambiguate a shared account — uniqueness here is what keeps the enrichment join from multiplying metric rows.
 
 **API / lifecycle** (`platform-account.service.ts`):
 
 - CRUD via `GET/POST/PATCH /bridge/platform-accounts`; bulk hard-delete via `DELETE /bridge/platform-accounts` body `{ ids }` (Superadmin). Apagar uma conta cascateia as linhas filhas do Bridge (FK `ON DELETE CASCADE`).
-- Bulk create via `POST /bridge/platform-accounts/bulk` body `{ platformId, accounts[], clientIds[] }` — writes the cartesian product accounts × clients (Superadmin).
+- Bulk create via `POST /bridge/platform-accounts/bulk` body `{ platformId, accounts[], clientId }` — writes one row per account, all for the same client (Superadmin).
 - Changing `clientId` on update **hard-deletes all child maps first**, then saves the new client (maps must not outlive the account–client binding).
 
 ---
