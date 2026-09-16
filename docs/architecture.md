@@ -55,9 +55,11 @@ dessas regras, a coluna de escopo precisa estar fisicamente na linha:
 
 > **Copie a coluna de escopo para a linha e amarre a cópia por FK composta à origem.**
 
-A cópia não é uma segunda verdade, porque o banco não permite que ela divirja. São quatro no
+A cópia não é uma segunda verdade, porque o banco não permite que ela divirja. São seis no
 modelo alvo — `client_id` e `platform_id` no binding, `campaign_id` na classificação de
-ad_group e na atribuição de eixo — e cada uma existe para tornar uma regra expressável.
+ad_group e na atribuição de eixo, e `platform_id` nas classificações de ad_group e de ad — e
+cada uma existe para tornar uma regra expressável. As duas últimas servem à chave do join de
+enriquecimento, descrita adiante.
 
 O custo é tabular: sete índices únicos de apoio, porque toda FK composta exige índice único
 nas colunas referenciadas. O ganho é que o estado errado deixa de ser representável, em vez de
@@ -82,6 +84,7 @@ platform_campaign_binding
 
   UNIQUE (platform_account_id, external_campaign_id)
   UNIQUE (platform_account_id, external_campaign_id, campaign_id)   -- apoio ao nível ad_group
+  UNIQUE (platform_id, external_campaign_id)   -- chave do join de enriquecimento
 
   FOREIGN KEY (platform_account_id, client_id, platform_id)
     REFERENCES platform_account (id, client_id, platform_id)
@@ -107,13 +110,15 @@ platform_ad_group_classification
   external_ad_group_id     text  NOT NULL
   external_campaign_id     text  NOT NULL   -- derivado do catálogo, nunca digitado
   campaign_id              uuid  NOT NULL   -- cópia de escopo, vem do binding
+  platform_id              uuid  NOT NULL   -- cópia de escopo, vem do binding
 
   UNIQUE (platform_account_id, external_ad_group_id)
-  UNIQUE (id, campaign_id)                  -- apoio à atribuição de eixo
+  UNIQUE (id, campaign_id)                     -- apoio à atribuição de eixo
+  UNIQUE (platform_id, external_ad_group_id)   -- chave do join de enriquecimento
 
-  FOREIGN KEY (platform_account_id, external_campaign_id, campaign_id)
+  FOREIGN KEY (platform_account_id, external_campaign_id, campaign_id, platform_id)
     REFERENCES platform_campaign_binding
-               (platform_account_id, external_campaign_id, campaign_id)
+               (platform_account_id, external_campaign_id, campaign_id, platform_id)
 ```
 
 Essa FK composta **é a amarração**. Torna impossível classificar um ad_group cuja campanha não
@@ -168,8 +173,13 @@ platform_ad_classification
   external_ad_id           text  NOT NULL
   format_id                uuid  FK → format
   sub_format_id            uuid  FK → sub_format
+  platform_id              uuid  NOT NULL   -- cópia de escopo, vem da conta
 
   UNIQUE (platform_account_id, external_ad_id)
+  UNIQUE (platform_id, external_ad_id)       -- chave do join de enriquecimento
+
+  FOREIGN KEY (platform_account_id, platform_id)
+    REFERENCES platform_account (id, platform_id)
   FOREIGN KEY (format_id, sub_format_id) REFERENCES sub_format (format_id, id)
 ```
 
@@ -344,6 +354,55 @@ em header** — sem usuário fantasma na tabela `user`.
 Três regras garantem isso: todo join de enriquecimento é `LEFT`; `NULL` vira balde explícito
 (`'Não informado'`, categoria legítima que aparece nos gráficos); e a invariante é teste
 automático do pipeline.
+
+`LEFT` protege contra **perder** linha. Não protege contra **duplicar** — e duplicar quebra a
+mesma invariante, para cima. É disso que trata a chave do join.
+
+### A chave do join
+
+O join de enriquecimento casa pelo **id do objeto**, filtrando o snapshot pela plataforma:
+
+```sql
+LEFT JOIN snapshot_campaign s ON f.campaign_id = s.external_campaign_id
+LEFT JOIN snapshot_ad_group g ON f.ad_group_id = g.external_ad_group_id
+```
+
+**A conta não entra na chave.** O motivo é a origem das colunas: `campaign_id`, `ad_group_id` e
+`ad_id` vêm do próprio fato e estão sempre presentes, enquanto `ad_account_id` é *derivado* da
+dimensão `ads` — e `NULL` nunca casa com `NULL`. Incluir a conta amarraria a cobertura do
+enriquecimento à completude de uma dimensão que o `LEFT JOIN` do gold base existe justamente
+para sobreviver sem.
+
+O preço é que o snapshot não pode ter dois candidatos para o mesmo id, senão a linha do fato
+duplica e o dinheiro dobra. Daí as três unicidades por coordenada externa no Bridge:
+
+```sql
+UNIQUE (platform_id, external_campaign_id)    -- platform_campaign_binding
+UNIQUE (platform_id, external_ad_group_id)    -- platform_ad_group_classification
+UNIQUE (platform_id, external_ad_id)          -- platform_ad_classification
+```
+
+Elas afirmam que **um objeto da plataforma pertence a exatamente uma conta**. Com elas, o
+fan-out é estruturalmente impossível e o erro aparece na tela, ao salvar — não de madrugada, no
+teste de conservação.
+
+As três não são igualmente dispensáveis, e vale saber disso antes de mexer nelas:
+
+| Nível | O que protege além da constraint |
+|---|---|
+| campanha | nada — é ela que torna a chave frouxa segura |
+| ad_group | a FK composta para o binding, **desde que** `external_campaign_id` esteja derivado certo; isso é garantia de serviço, não de banco |
+| ad | **nada** — `platform_ad_classification` não tem cadeia para o binding, só para a conta e para o formato |
+
+Ou seja: campanha e ad são as únicas barreiras dos seus níveis. A de ad_group troca uma
+garantia de serviço por uma de banco, num modo de falha que infla métrica. Se alguma plataforma futura violar essa afirmação, a constraint recusa o
+vínculo e avisa que a chave frouxa ficou insegura para ela: os dois caem juntos, que é o
+comportamento desejado.
+
+**Conta ausente não é remendada.** Quando `ad_account_id` vem nulo no gold base, o enriquecido
+o mantém nulo em vez de derivá-lo do binding. A conta é coluna técnica de rastreio; o cliente e
+a campanha de negócio do relatório vêm do snapshot e não dependem dela. Preencher criaria uma
+segunda fonte para o mesmo atributo, contra a invariante 2, sem ganho de negócio.
 
 ## Fora de escopo
 
