@@ -11,7 +11,8 @@ import {
 import { Client } from 'src/business/client/client.entity';
 
 @Entity()
-@Unique(['client', 'name'])
+@Unique(['clientId', 'name'])
+@Unique(['id', 'clientId']) // ancora a regra 1 do binding
 export class Campaign {
   @PrimaryGeneratedColumn('uuid', { name: 'id' })
   id: string;
@@ -24,6 +25,9 @@ export class Campaign {
 
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive: boolean;
+
+  @Column({ name: 'client_id', type: 'uuid' })
+  clientId: string;
 
   @ManyToOne(() => Client, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'client_id', referencedColumnName: 'id' })

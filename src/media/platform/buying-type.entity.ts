@@ -4,9 +4,9 @@ import {
   PrimaryGeneratedColumn,
   CreateDateColumn,
   UpdateDateColumn,
-  ManyToMany,
+  OneToMany,
 } from 'typeorm';
-import { Channel } from './channel.entity';
+import { ChannelBuyingType } from './channel-buying-type.entity';
 
 @Entity({ name: 'buying_type' })
 export class BuyingType {
@@ -33,6 +33,6 @@ export class BuyingType {
   @UpdateDateColumn({ name: 'updated_at', type: 'timestamp with time zone' })
   updatedAt: Date;
 
-  @ManyToMany(() => Channel, (channel) => channel.buyingTypes)
-  channels: Channel[];
+  @OneToMany(() => ChannelBuyingType, (link) => link.buyingType)
+  channelLinks: ChannelBuyingType[];
 }

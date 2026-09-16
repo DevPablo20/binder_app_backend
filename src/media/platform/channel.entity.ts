@@ -5,16 +5,16 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   ManyToOne,
-  ManyToMany,
+  OneToMany,
   JoinColumn,
-  JoinTable,
   Unique,
 } from 'typeorm';
 import { Platform } from './platform.entity';
-import { BuyingType } from './buying-type.entity';
+import { ChannelBuyingType } from './channel-buying-type.entity';
 
 @Entity()
-@Unique(['platform', 'name'])
+@Unique(['platformId', 'name'])
+@Unique(['id', 'platformId']) // ancora a regra 2 do binding
 export class Channel {
   @PrimaryGeneratedColumn('uuid', { name: 'id' })
   id: string;
@@ -28,19 +28,20 @@ export class Channel {
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive: boolean;
 
+  @Column({ name: 'platform_id', type: 'uuid' })
+  platformId: string;
+
   @ManyToOne(() => Platform, (platform) => platform.channels, {
     onDelete: 'CASCADE',
   })
   @JoinColumn({ name: 'platform_id', referencedColumnName: 'id' })
   platform: Platform;
 
-  @ManyToMany(() => BuyingType, (buyingType) => buyingType.channels)
-  @JoinTable({
-    name: 'channel_buying_type',
-    joinColumn: { name: 'channel_id', referencedColumnName: 'id' },
-    inverseJoinColumn: { name: 'buying_type_id', referencedColumnName: 'id' },
+  @OneToMany(() => ChannelBuyingType, (link) => link.channel, {
+    cascade: ['insert', 'update'],
+    orphanedRowAction: 'delete',
   })
-  buyingTypes: BuyingType[];
+  channelBuyingTypes: ChannelBuyingType[];
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamp with time zone' })
   createdAt: Date;

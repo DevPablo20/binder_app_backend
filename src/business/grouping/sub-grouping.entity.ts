@@ -11,7 +11,8 @@ import {
 import { Grouping } from './grouping.entity';
 
 @Entity({ name: 'sub_grouping' })
-@Unique(['grouping', 'name'])
+@Unique(['groupingId', 'name'])
+@Unique(['groupingId', 'id']) // ancora a regra 4 do eixo
 export class SubGrouping {
   @PrimaryGeneratedColumn('uuid', { name: 'id' })
   id: string;
@@ -24,6 +25,9 @@ export class SubGrouping {
 
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive: boolean;
+
+  @Column({ name: 'grouping_id', type: 'uuid' })
+  groupingId: string;
 
   @ManyToOne(() => Grouping, (grouping) => grouping.subGroupings, {
     onDelete: 'CASCADE',

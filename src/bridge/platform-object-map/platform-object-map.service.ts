@@ -262,7 +262,7 @@ export class PlatformObjectMapService {
       relations: {
         platformAccount: { client: true, platform: true },
         campaign: { client: true },
-        channel: { platform: true, buyingTypes: true },
+        channel: { platform: true, channelBuyingTypes: true },
         buyingType: true,
         format: true,
         subFormat: { format: true },
@@ -401,7 +401,7 @@ export class PlatformObjectMapService {
       } else {
         const found = await this.channelRepository.findOne({
           where: { id: opts.channelId },
-          relations: { platform: true, buyingTypes: true },
+          relations: { platform: true, channelBuyingTypes: true },
         });
         if (!found) {
           throw new HttpException('Canal não encontrado', HttpStatus.NOT_FOUND);
@@ -411,7 +411,7 @@ export class PlatformObjectMapService {
     } else if (channel && !channel.platform) {
       const found = await this.channelRepository.findOne({
         where: { id: channel.id },
-        relations: { platform: true, buyingTypes: true },
+        relations: { platform: true, channelBuyingTypes: true },
       });
       if (found) channel = found;
     }
@@ -520,8 +520,8 @@ export class PlatformObjectMapService {
     buyingType: BuyingType | null,
   ): void {
     if (!channel || !buyingType) return;
-    const allowed = (channel.buyingTypes ?? []).some(
-      (bt) => bt.id === buyingType.id,
+    const allowed = (channel.channelBuyingTypes ?? []).some(
+      (link) => link.buyingTypeId === buyingType.id,
     );
     if (!allowed) {
       throw new HttpException(

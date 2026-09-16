@@ -9,6 +9,7 @@ import {
 import dataSource from '../typeormFile';
 import { Channel } from '../../../media/platform/channel.entity';
 import { BuyingType } from '../../../media/platform/buying-type.entity';
+import { ChannelBuyingType } from '../../../media/platform/channel-buying-type.entity';
 
 export function logSeed(message: string): void {
   console.log(`[seed] ${message}`);
@@ -86,13 +87,15 @@ export async function syncChannelBuyingTypes(
 ): Promise<void> {
   const withRelations = await channelRepository.findOne({
     where: { id: channel.id },
-    relations: { buyingTypes: true },
+    relations: { channelBuyingTypes: true },
   });
 
   if (!withRelations) {
     return;
   }
 
-  withRelations.buyingTypes = buyingTypes;
+  withRelations.channelBuyingTypes = buyingTypes.map(
+    (buyingType) => ({ buyingTypeId: buyingType.id }) as ChannelBuyingType,
+  );
   await channelRepository.save(withRelations);
 }

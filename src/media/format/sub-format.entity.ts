@@ -11,7 +11,8 @@ import {
 import { Format } from './format.entity';
 
 @Entity({ name: 'sub_format' })
-@Unique(['format', 'name'])
+@Unique(['formatId', 'name'])
+@Unique(['formatId', 'id']) // ancora a regra 4
 export class SubFormat {
   @PrimaryGeneratedColumn('uuid', { name: 'id' })
   id: string;
@@ -24,6 +25,9 @@ export class SubFormat {
 
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive: boolean;
+
+  @Column({ name: 'format_id', type: 'uuid' })
+  formatId: string;
 
   @ManyToOne(() => Format, (format) => format.subFormats, {
     onDelete: 'CASCADE',

@@ -12,9 +12,13 @@ import {
 import { Client } from 'src/business/client/client.entity';
 import { Platform } from 'src/media/platform/platform.entity';
 import { PlatformObjectMap } from 'src/bridge/platform-object-map/platform-object-map.entity';
+import { PlatformCampaignBinding } from 'src/bridge/campaign-binding/platform-campaign-binding.entity';
+import { PlatformAdClassification } from 'src/bridge/ad-classification/platform-ad-classification.entity';
 
 @Entity({ name: 'platform_account' })
-@Unique(['platform', 'externalAccountId'])
+@Unique(['platformId', 'externalAccountId'])
+@Unique(['id', 'clientId', 'platformId']) // ancora o binding
+@Unique(['id', 'platformId']) // ancora a classificacao de ad
 export class PlatformAccount {
   @PrimaryGeneratedColumn('uuid', { name: 'id' })
   id: string;
@@ -32,6 +36,12 @@ export class PlatformAccount {
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive: boolean;
 
+  @Column({ name: 'client_id', type: 'uuid' })
+  clientId: string;
+
+  @Column({ name: 'platform_id', type: 'uuid' })
+  platformId: string;
+
   @ManyToOne(() => Client, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'client_id', referencedColumnName: 'id' })
   client: Client;
@@ -48,4 +58,16 @@ export class PlatformAccount {
 
   @OneToMany(() => PlatformObjectMap, (map) => map.platformAccount)
   objectMaps: PlatformObjectMap[];
+
+  @OneToMany(
+    () => PlatformCampaignBinding,
+    (binding) => binding.platformAccount,
+  )
+  campaignBindings: PlatformCampaignBinding[];
+
+  @OneToMany(
+    () => PlatformAdClassification,
+    (classification) => classification.platformAccount,
+  )
+  adClassifications: PlatformAdClassification[];
 }

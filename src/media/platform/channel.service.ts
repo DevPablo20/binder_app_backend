@@ -4,6 +4,7 @@ import { In, Repository } from 'typeorm';
 import { Channel } from './channel.entity';
 import { Platform } from './platform.entity';
 import { BuyingType } from './buying-type.entity';
+import { ChannelBuyingType } from './channel-buying-type.entity';
 import { UserSignature } from 'src/access/auth/userSignature.type';
 import { Role } from 'src/shared/role.enum';
 import {
@@ -36,7 +37,7 @@ export class ChannelService {
   async findOne(id: string): Promise<ChannelDetailDto> {
     const channel = await this.channelRepository.findOne({
       where: { id },
-      relations: { platform: true, buyingTypes: true },
+      relations: { platform: true, channelBuyingTypes: true },
     });
 
     if (!channel) {
@@ -65,16 +66,18 @@ export class ChannelService {
     });
 
     if (!platform) {
-      throw new HttpException('Plataforma não encontrada', HttpStatus.NOT_FOUND);
+      throw new HttpException(
+        'Plataforma não encontrada',
+        HttpStatus.NOT_FOUND,
+      );
     }
 
     const allBuyingTypeIds = [
-      ...new Set(
-        dto.channels.flatMap((item) => item.buyingTypeIds ?? []),
-      ),
+      ...new Set(dto.channels.flatMap((item) => item.buyingTypeIds ?? [])),
     ];
 
-    const buyingTypesById = await this.loadBuyingTypesById(allBuyingTypeIds);
+    // valida que todos os ids existem; o vínculo é gravado por id, não pela entidade
+    await this.loadBuyingTypesById(allBuyingTypeIds);
 
     const channels = dto.channels.map((item) =>
       this.channelRepository.create({
@@ -82,8 +85,8 @@ export class ChannelService {
         description: item.description,
         isActive: item.isActive ?? true,
         platform,
-        buyingTypes: (item.buyingTypeIds ?? []).map(
-          (id) => buyingTypesById.get(id)!,
+        channelBuyingTypes: (item.buyingTypeIds ?? []).map(
+          (id) => ({ buyingTypeId: id }) as ChannelBuyingType,
         ),
       }),
     );
@@ -95,7 +98,7 @@ export class ChannelService {
 
       const withRelations = await this.channelRepository.find({
         where: { id: In(saved.map((c) => c.id)) },
-        relations: { platform: true, buyingTypes: true },
+        relations: { platform: true, channelBuyingTypes: true },
       });
 
       return withRelations.map((channel) => this.toDetailDto(channel));
@@ -116,7 +119,7 @@ export class ChannelService {
     const ids = dto.channels.map((item) => item.id);
     const channels = await this.channelRepository.find({
       where: { id: In(ids) },
-      relations: { platform: true, buyingTypes: true },
+      relations: { platform: true, channelBuyingTypes: true },
     });
 
     if (channels.length !== ids.length) {
@@ -128,24 +131,23 @@ export class ChannelService {
     );
 
     const allBuyingTypeIds = [
-      ...new Set(
-        dto.channels.flatMap((item) => item.buyingTypeIds ?? []),
-      ),
+      ...new Set(dto.channels.flatMap((item) => item.buyingTypeIds ?? [])),
     ];
 
-    const buyingTypesById =
-      allBuyingTypeIds.length > 0
-        ? await this.loadBuyingTypesById(allBuyingTypeIds)
-        : new Map<string, BuyingType>();
+    if (allBuyingTypeIds.length > 0) {
+      // valida que todos os ids existem; o vínculo é gravado por id
+      await this.loadBuyingTypesById(allBuyingTypeIds);
+    }
 
     for (const item of dto.channels) {
       const channel = channelsById.get(item.id)!;
       if (item.name !== undefined) channel.name = item.name;
-      if (item.description !== undefined) channel.description = item.description;
+      if (item.description !== undefined)
+        channel.description = item.description;
       if (item.isActive !== undefined) channel.isActive = item.isActive;
       if (item.buyingTypeIds !== undefined) {
-        channel.buyingTypes = item.buyingTypeIds.map(
-          (id) => buyingTypesById.get(id)!,
+        channel.channelBuyingTypes = item.buyingTypeIds.map(
+          (id) => ({ buyingTypeId: id }) as ChannelBuyingType,
         );
       }
     }
@@ -157,7 +159,7 @@ export class ChannelService {
 
       const withRelations = await this.channelRepository.find({
         where: { id: In(updated.map((c) => c.id)) },
-        relations: { platform: true, buyingTypes: true },
+        relations: { platform: true, channelBuyingTypes: true },
       });
 
       return withRelations.map((channel) => this.toDetailDto(channel));
@@ -212,7 +214,8 @@ export class ChannelService {
     return {
       ...this.toSummaryDto(channel),
       description: channel.description,
-      buyingTypeIds: channel.buyingTypes?.map((bt) => bt.id) ?? [],
+      buyingTypeIds:
+        channel.channelBuyingTypes?.map((link) => link.buyingTypeId) ?? [],
       createdAt: channel.createdAt,
       updatedAt: channel.updatedAt,
     };

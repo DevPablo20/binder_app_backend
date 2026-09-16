@@ -13,7 +13,8 @@ import { Campaign } from 'src/business/campaign/campaign.entity';
 import { SubGrouping } from './sub-grouping.entity';
 
 @Entity()
-@Unique(['campaign', 'name'])
+@Unique(['campaignId', 'name'])
+@Unique(['campaignId', 'id']) // ancora a regra 5
 export class Grouping {
   @PrimaryGeneratedColumn('uuid', { name: 'id' })
   id: string;
@@ -26,6 +27,9 @@ export class Grouping {
 
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive: boolean;
+
+  @Column({ name: 'campaign_id', type: 'uuid' })
+  campaignId: string;
 
   @ManyToOne(() => Campaign, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'campaign_id', referencedColumnName: 'id' })

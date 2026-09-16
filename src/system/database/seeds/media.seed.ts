@@ -84,7 +84,6 @@ export async function seedMedia(dataSource: DataSource): Promise<void> {
         description: item.description,
         isActive: true,
         platform,
-        buyingTypes,
       },
       (entity) => {
         entity.description = item.description;
