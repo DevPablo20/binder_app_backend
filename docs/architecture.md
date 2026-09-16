@@ -61,8 +61,9 @@ ad_group e na atribuição de eixo, e `platform_id` nas classificações de ad_g
 cada uma existe para tornar uma regra expressável. As duas últimas servem à chave do join de
 enriquecimento, descrita adiante.
 
-O custo é tabular: sete índices únicos de apoio, porque toda FK composta exige índice único
-nas colunas referenciadas. O ganho é que o estado errado deixa de ser representável, em vez de
+O custo é tabular: oito índices únicos de apoio, porque toda FK composta exige índice único
+nas colunas referenciadas — e o TypeORM **nunca** os gera sozinho para `@ManyToOne`, todos
+precisam ser declarados. O ganho é que o estado errado deixa de ser representável, em vez de
 ser recusado por um `if`.
 
 ## Modelo alvo
@@ -83,7 +84,7 @@ platform_campaign_binding
   platform_id              uuid  NOT NULL   -- cópia de escopo, vem da conta
 
   UNIQUE (platform_account_id, external_campaign_id)
-  UNIQUE (platform_account_id, external_campaign_id, campaign_id)   -- apoio ao nível ad_group
+  UNIQUE (platform_account_id, external_campaign_id, campaign_id, platform_id)  -- apoio ao ad_group
   UNIQUE (platform_id, external_campaign_id)   -- chave do join de enriquecimento
 
   FOREIGN KEY (platform_account_id, client_id, platform_id)
@@ -97,8 +98,12 @@ platform_campaign_binding
 
 -- requer índices únicos de apoio:
 CREATE UNIQUE INDEX ON platform_account (id, client_id, platform_id);
+CREATE UNIQUE INDEX ON platform_account (id, platform_id);   -- ancora o nível ad
 CREATE UNIQUE INDEX ON campaign (id, client_id);
 CREATE UNIQUE INDEX ON channel (id, platform_id);
+
+-- `channel_buying_type` precisa ser entidade explícita com PK composta, não `@JoinTable`:
+-- FK não referencia tabela de junção que só existe em metadado de ManyToMany.
 ```
 
 ### Nível ad_group — só classificação por eixos
@@ -192,7 +197,8 @@ platform_format_mapping
   format_id      uuid  NOT NULL  FK → format
   sub_format_id  uuid  NOT NULL  FK → sub_format
 
-  UNIQUE (platform_id, native_value)
+  PRIMARY KEY (platform_id, native_value)   -- é a própria unicidade que a tradução exige
+  FOREIGN KEY (format_id, sub_format_id) REFERENCES sub_format (format_id, id)
 ```
 
 O TikTok entrega `ad_format` com cardinalidade muito baixa (vídeo, carrossel, e nulo nos
@@ -215,7 +221,7 @@ pode vir nulo; e `ad_format` não carrega duração (não separa 15s de 30s), en
 | ad e ad_group na mesma campanha | estruturalmente irrepresentável |
 | `assertClientAlignment` — campanha é do cliente da conta | regra 1 |
 | `assertChannelPlatform` — channel é da plataforma da conta | regra 2 |
-| `assertBuyingTypeOnChannel` — buying type vale no channel | regra 3 |
+| `assertBuyingTypeOnChannel` — buying type vale no channel | regra 3, via `channel_buying_type` promovida a entidade |
 | `assertFormatSubFormatConsistency` — sub-formato é do formato | regra 4 |
 | `loadSubGroupingsForCampaign` — eixo é da campanha do map | regra 5 |
 
