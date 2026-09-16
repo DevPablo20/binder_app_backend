@@ -110,6 +110,9 @@ DDL completa, as cinco regras de escopo e o que cada constraint compra:
   O inverso é livre: um cliente pode ter várias contas, inclusive duas cobrindo períodos
   diferentes da mesma campanha de negócio.
 - **Escritas do Bridge são Superadmin.** `assertSuperadmin` antes de mutação.
+- **Máquina não é usuário.** Rotas consumidas pelo DAG são `@Public()` para o `AuthGuard` e
+  protegidas por guard próprio, com chave de API em header. Não crie linha em `user` para robô:
+  `UserSignature` pressupõe pessoa (role, empresas) e o JWT expira.
 - Validação em DTO com `class-validator`, nunca em entidade. Todo campo exposto no Swagger
   leva `@ApiProperty()`.
 - Repositórios via `@InjectRepository(Entity)` — sem token de provider customizado.

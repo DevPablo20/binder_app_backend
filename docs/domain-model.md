@@ -680,10 +680,38 @@ afetado.
 | Campo | Significado |
 |---|---|
 | `publishedAt` / `publishedBy` | Quando e por quem |
-| `status` | `pending` \| `processing` \| `materialized` \| `failed` |
+| `status` | `pending` \| `materialized` \| `superseded` |
 
-O DAG lê a última publicação `pending`, nunca as tabelas vivas — isso torna a rodada
-reprodutível e dá o rastro de auditoria que o SCD tipo 1 não guarda.
+O DAG usa a publicação mais recente e o snapshot congelado, nunca as tabelas vivas — isso torna
+a rodada reprodutível e dá o rastro de auditoria que o SCD tipo 1 não guarda. Publicar de novo
+antes de a anterior ser usada marca a anterior como `superseded`.
+
+Falha **não** é status de publicação: o gold enriquecido é reconstruído a cada rodada diária,
+então uma publicação é usada em muitas rodadas e o resultado de cada uma vive em
+`EnrichmentRun`.
+
+---
+
+### EnrichmentRun
+
+| | |
+|---|---|
+| **Papel de negócio** | Registra cada execução do enriquecimento pelo DAG: quando rodou, com qual publicação, e se deu certo. É o que sustenta o aviso "a última rodada falhou" na tela. |
+| **Arquivo alvo** | `src/bridge/enrichment-run.entity.ts` |
+| **Status** | **Alvo** — ainda não existe no código |
+
+**Campos**
+
+| Campo | Significado |
+|---|---|
+| `publicationId` | Qual configuração a rodada usou |
+| `startedAt` / `finishedAt` | Janela da execução |
+| `status` | `success` \| `failed` |
+| `errorMessage` | Diagnóstico quando falha |
+
+Contar falhas consecutivas é um `SELECT` aqui. Não há limite de tentativas: reconstruir é o
+trabalho normal do dia, e travar congelaria o gold também em relação ao fato novo. A cobertura
+do enriquecimento também é métrica de rodada, e é aqui que ela cabe.
 
 ---
 

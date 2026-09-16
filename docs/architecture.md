@@ -249,28 +249,92 @@ discordam, não há como escolher. Na dúvida, declare no nível mais alto.
 
 Configurar não dispara processamento. Publicar sim, e uma vez só para o lote inteiro.
 
+### Os dois relógios
+
+O gold enriquecido é produto de duas coisas que mudam em ritmos diferentes: o **fato**, que
+recebe linhas novas todo dia, e a **configuração**, que muda quando alguém publica. Por isso o
+gold enriquecido é reconstruído **a cada rodada diária**, mesmo quando ninguém publicou nada —
+senão o fato novo ficaria sem enriquecimento.
+
+Daí a consequência que governa todo o resto: uma publicação é criada **uma vez** e usada em
+**muitas rodadas**. Publicação e rodada são coisas diferentes, e cada uma tem sua tabela.
+
+### Modelo
+
 ```sql
 enrichment_publication
   id            uuid  PK
   published_at  timestamptz
   published_by  uuid  FK → user
-  status        enum  pending | processing | materialized | failed
+  status        enum  pending | materialized | superseded
+
+enrichment_run
+  id              uuid  PK
+  publication_id  uuid  NOT NULL  FK → enrichment_publication
+  started_at      timestamptz
+  finished_at     timestamptz
+  status          enum  success | failed
+  error_message   text
 ```
+
+| Status da publicação | Significado |
+|---|---|
+| `pending` | publicada, nunca materializada com sucesso |
+| `materialized` | materializada com sucesso ao menos uma vez |
+| `superseded` | uma publicação mais nova chegou antes desta ser usada |
+
+**Falha é da rodada, não da publicação.** Uma publicação já materializada não volta a ser
+inválida porque a rodada de amanhã quebrou por erro transitório de Spark. Contar falhas
+consecutivas vira um `SELECT` em `enrichment_run` — e é isso que a tela mostra.
+
+Não existe `processing`. A operação é idempotente (`Overwrite` full sobre SCD tipo 1) e o
+Airflow roda uma instância por vez: não há corrida a proteger, nem publicação presa se o DAG
+morrer no meio.
+
+### Ciclo
 
 - Edições nas tabelas do Bridge não afetam nada no lake.
 - O backend compara `MAX(updated_at)` das tabelas com o `published_at` da última publicação e
   sabe quantos objetos mudaram.
-- Publicar **congela um snapshot** das tabelas sob aquele `publication_id` e marca `pending`.
-- O DAG lê a última publicação `pending` — nunca as tabelas vivas.
+- Publicar **congela um snapshot** da configuração sob aquele `publication_id`.
+- Publicar de novo antes de a anterior ser usada marca a anterior como `superseded`: como o
+  gold é `Overwrite` full, materializar a antiga seria trabalho jogado fora.
+- Cada rodada do DAG usa a publicação mais recente, abre um `enrichment_run` e o fecha com
+  `success` ou `failed`. Rodada que falha não trava nada — a do dia seguinte tenta de novo,
+  porque reconstruir é o trabalho normal do dia. Não há limite de tentativas: travar
+  congelaria o gold também em relação ao fato novo.
+- **Sem publicação alguma, o gold enriquecido é construído com configuração vazia.** Snapshot
+  vazio é só um snapshot com zero linhas: os `LEFT JOIN` produzem `NULL`, que vira
+  `'Não informado'`. Não há caso especial no código, e o resultado é um passa-through puro —
+  mesma soma *e* mesma contagem de linhas do gold base. É o teste mais sensível a fan-out que
+  existe, rodando desde o primeiro dia.
 - O gold enriquecido carrega `enrichment_publication_id`.
 
 Isso entrega: nada reprocessa por micro-alteração; a rodada é reprodutível; o relatório diz
 qual configuração o gerou (compensando parcialmente o SCD tipo 1); e republicar snapshot
 antigo é rollback trivial.
 
-**Transporte:** o backend expõe `GET /enrichment/publications/pending` e o DAG faz o fetch.
-Simétrico ao `catalog-api` que já existe na direção oposta, sem credencial S3 aqui e sem
-driver JDBC no Spark. O snapshot é da ordem de mil linhas de JSON.
+### O snapshot congela valores, não ids
+
+O snapshot vive em tabelas próprias sob o `publication_id`, não num JSONB — assim ele é
+consultável e auditável por SQL.
+
+E ele guarda os **valores resolvidos**, não as chaves estrangeiras. Se guardasse
+`sub_grouping_id`, renomear "Crédito" para "Crédito PF" no dia seguinte mudaria o resultado de
+uma publicação supostamente congelada. Resolver no momento da publicação é o que torna a
+rodada reprodutível de verdade.
+
+### Transporte e autenticação
+
+O backend expõe a leitura da publicação corrente e a escrita do resultado da rodada; o DAG faz
+duas chamadas, uma no começo e uma no fim. Simétrico ao `catalog-api` que já existe na direção
+oposta, sem credencial S3 aqui e sem driver JDBC no Spark.
+
+A assimetria com o `catalog-api` é que **esta direção escreve, e o backend é serviço público**.
+O `AuthGuard` global exige JWT de um usuário real do banco, o que não serve para um robô: ele
+não tem empresa, não tem e-mail, não faz login, e o token expiraria. As rotas do DAG são
+`@Public()` para o `AuthGuard` e protegidas por um guard próprio que confere uma **chave de API
+em header** — sem usuário fantasma na tabela `user`.
 
 ## Invariante de conservação
 
