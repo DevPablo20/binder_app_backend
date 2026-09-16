@@ -99,17 +99,28 @@ de **PK composta** e **FK composta**. Leia
 
 ```typescript
 // platform-ad-group-classification.entity.ts
-@ManyToOne(() => PlatformCampaignBinding, { onDelete: 'CASCADE' })
+@ManyToOne(() => PlatformCampaignBinding, (b) => b.adGroupClassifications, {
+  onDelete: 'CASCADE',
+})
 @JoinColumn([
   { name: 'platform_account_id', referencedColumnName: 'platformAccountId' },
   { name: 'external_campaign_id', referencedColumnName: 'externalCampaignId' },
+  { name: 'campaign_id', referencedColumnName: 'campaignId' },
+  { name: 'platform_id', referencedColumnName: 'platformId' },
 ])
 campaignBinding: PlatformCampaignBinding;
 ```
 
-O destino precisa de `@Unique(['platformAccountId', 'externalCampaignId'])`, e as colunas de
-junção precisam existir também como `@Column` na entidade que aponta — TypeORM não cria
-coluna implícita para FK composta.
+Três coisas que o TypeORM 0.3 exige e não avisa:
+
+1. **Coluna de junção precisa de `@Column` explícito** — na entidade que aponta *e* na
+   referenciada. `referencedColumnName` resolve por `propertyName` entre as colunas próprias
+   do destino; não enxerga relações.
+2. **O índice único de apoio nunca é gerado para `@ManyToOne`.** Declare `@Unique` no destino
+   com exatamente as mesmas colunas da FK — Postgres exige correspondência exata, não
+   subconjunto. Uma FK de 4 colunas não se ancora num único de 3.
+3. **`length` não é herdado.** Se as duas pontas de uma coluna `varchar` divergirem no
+   `length`, passa silenciosa para o schema.
 
 ### PK composta
 
@@ -132,13 +143,21 @@ A PK `(classification, grouping)` é o que garante **um valor por eixo**. Não s
 
 ### Índice único de apoio
 
-Toda FK composta exige um único no destino. Se o TypeORM não gerar, escreva na migration:
+Toda FK composta exige um único no destino, e ele **nunca** sai sozinho. Declare no destino:
 
-```sql
-CREATE UNIQUE INDEX "UQ_sub_grouping_grouping_id_id" ON "sub_grouping" ("grouping_id", "id");
+```typescript
+@Entity({ name: 'sub_grouping' })
+@Unique(['groupingId', 'id'])   // ancora a FK composta de quem aponta
+export class SubGrouping { ... }
 ```
 
-Revise sempre a migration gerada para chave composta — é onde o TypeORM mais erra.
+**Nunca escreva FK ou índice à mão na migration.** O `RdbmsSchemaBuilder` derruba qualquer
+constraint que esteja no banco e não nos metadados — o `migration:generate` seguinte emite um
+`DROP` e a garantia evapora semanas depois. Tudo vem de decorator.
+
+A prova de que metadado e banco batem é o **drift check**: depois de rodar a migration,
+`npm run build && npm run migration:generate <path>` tem que responder
+`No changes in database schema were found` e não escrever arquivo.
 
 ## ManyToMany (padrão canônico do projeto)
 

@@ -24,7 +24,7 @@ código legado fora do passo correspondente.
 |---|---|---|
 | **Access** | quem usa o sistema, e por qual empresa | `User`, `Company`, `UserCompany`, `Invite` |
 | **Business** | a que contrato e iniciativa o dado pertence | `Client`, `Campaign`, `Grouping`, `SubGrouping` |
-| **Media** | que categorias existem para descrever mídia | `Platform`, `Channel`, `BuyingType`, `Format`, `SubFormat` |
+| **Media** | que categorias existem para descrever mídia | `Platform`, `Channel`, `BuyingType`, `ChannelBuyingType`, `Format`, `SubFormat` |
 | **Bridge** | qual objeto de plataforma corresponde a qual significado | binding e classificações |
 
 Fronteiras que não se cruzam:
@@ -87,9 +87,10 @@ Uma tabela por nível, porque cada nível declara coisas diferentes:
   da campanha de negócio do binding.
 - `platform_ad_classification` — `format_id` / `sub_format_id`, só como exceção à tradução.
 
-Quatro colunas são **cópia de escopo**, não declaração: `client_id` e `platform_id` no
-binding, `campaign_id` na classificação de ad_group e na atribuição de eixo. Cada uma entra numa
-FK composta que a impede de divergir da origem, e nenhuma delas é exposta em DTO.
+Seis colunas são **cópia de escopo**, não declaração: `client_id` e `platform_id` no binding,
+`campaign_id` na classificação de ad_group e na atribuição de eixo, e `platform_id` nas
+classificações de ad_group e de ad. Cada uma entra numa FK composta que a impede de divergir da
+origem, e nenhuma delas é exposta em DTO.
 
 DDL completa, as cinco regras de escopo e o que cada constraint compra:
 [docs/architecture.md](docs/architecture.md).
@@ -111,6 +112,10 @@ DDL completa, as cinco regras de escopo e o que cada constraint compra:
   para a mesma conta fariam o join do enriquecimento duplicar métrica, contra a invariante 5.
   O inverso é livre: um cliente pode ter várias contas, inclusive duas cobrindo períodos
   diferentes da mesma campanha de negócio.
+- **No Bridge, escreva por id escalar, nunca por objeto de relação.** Seis colunas participam
+  de duas FKs compostas cada, e só a relação declarada primeiro é dona da coluna — atribuir a
+  entidade (`binding.campaign = campanha`) faz o valor gravado depender da ordem dos decorators.
+  Atribua `binding.campaignId = id`. Ler com `relations: {…}` é livre.
 - **Escritas do Bridge são Superadmin.** `assertSuperadmin` antes de mutação.
 - **Máquina não é usuário.** Rotas consumidas pelo DAG são `@Public()` para o `AuthGuard` e
   protegidas por guard próprio, com chave de API em header. Não crie linha em `user` para robô:

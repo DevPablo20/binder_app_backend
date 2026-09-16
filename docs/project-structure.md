@@ -44,12 +44,15 @@ src/
 │   └── grouping/               # Grouping, SubGrouping (escopo campanha)
 ├── media/
 │   ├── media.module.ts         # agregador: Platform, Format
-│   ├── platform/               # Platform, Channel, BuyingType (catálogo global)
+│   ├── platform/               # Platform, Channel, BuyingType, ChannelBuyingType
 │   └── format/                 # Format, SubFormat (catálogo global)
 ├── bridge/                     # configuração: qual objeto é o quê
 │   ├── bridge.module.ts        # agregador
 │   ├── catalog/                # descoberta de identidades do lake + catalog-api.client
 │   ├── platform-account/       # identificação conta → cliente
+│   ├── campaign-binding/       # nível campaign: binding, channel, buying type
+│   ├── ad-group-classification/# nível ad_group: classificação + atribuição de eixo
+│   ├── ad-classification/      # nível ad: exceção de formato + tradução de nativo
 │   └── platform-object-map/    # LEGADO — sai no passo de remoção
 ├── system/
 │   ├── database/               # TypeOrmModule.forRootAsync, migrations, seeds
@@ -91,7 +94,7 @@ contrário. Entidades e rotas em [architecture.md](architecture.md).
 | `AccessModule` | `AuthModule`, `UserModule`, `CompanyModule`, `UserCompanyModule`, `InviteModule` | `access/` |
 | `BusinessModule` | `ClientModule`, `CampaignModule`, `GroupingModule` | `business/`, `media/` (grouping) |
 | `MediaModule` | `PlatformModule`, `FormatModule` | `media/` |
-| `BridgeModule` | `CatalogModule`, `PlatformAccountModule`, `PlatformObjectMapModule` | `bridge/` |
+| `BridgeModule` | `CatalogModule`, `PlatformAccountModule`, `CampaignBindingModule`, `AdGroupClassificationModule`, `AdClassificationModule`, `PlatformObjectMapModule` | `bridge/` |
 
 Ordem em `AppModule`: `SystemModule` primeiro (DatabaseModule), depois `AccessModule` (AuthGuard).
 

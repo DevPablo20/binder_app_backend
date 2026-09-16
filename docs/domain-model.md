@@ -41,26 +41,28 @@ erDiagram
     User ||--o{ Invite : envia
     Invite }o--o{ Company : "via invite_company"
     Platform ||--o{ Channel : tem
-    Channel }o--o{ BuyingType : "via channel_buying_type"
+    Channel ||--o{ ChannelBuyingType : oferece
+    BuyingType ||--o{ ChannelBuyingType : "ofertado em"
     Format ||--o{ SubFormat : tem
     Campaign ||--o{ Grouping : define
     Grouping ||--o{ SubGrouping : tem
     Client ||--o{ PlatformAccount : possui
     Platform ||--o{ PlatformAccount : escopa
 
-    PlatformAccount ||--o{ PlatformCampaignBinding : contem
-    Campaign ||--o{ PlatformCampaignBinding : "recebe"
-    Channel ||--o{ PlatformCampaignBinding : rotula
-    BuyingType ||--o{ PlatformCampaignBinding : rotula
+    PlatformAccount   ||--o{ PlatformCampaignBinding : "conta + cliente + plataforma"
+    Campaign          ||--o{ PlatformCampaignBinding : "regra 1 - id + cliente"
+    Channel           ||--o{ PlatformCampaignBinding : "regra 2 - id + plataforma"
+    ChannelBuyingType ||--o{ PlatformCampaignBinding : "regra 3 - par valido"
 
-    PlatformCampaignBinding ||--o{ PlatformAdGroupClassification : "amarra por FK composta"
-    PlatformAdGroupClassification ||--o{ PlatformAdGroupGrouping : atribui
-    SubGrouping ||--o{ PlatformAdGroupGrouping : "valor do eixo"
+    PlatformCampaignBinding       ||--o{ PlatformAdGroupClassification : "amarracao - 4 colunas"
+    PlatformAdGroupClassification ||--o{ PlatformAdGroupGrouping : "id + campanha"
+    Grouping                      ||--o{ PlatformAdGroupGrouping : "regra 5 - campanha + eixo"
+    SubGrouping                   ||--o{ PlatformAdGroupGrouping : "regra 4 - eixo + valor"
 
-    PlatformAccount ||--o{ PlatformAdClassification : contem
-    Format ||--o{ PlatformAdClassification : rotula
-    SubFormat ||--o{ PlatformAdClassification : rotula
-    Platform ||--o{ PlatformFormatMapping : traduz
+    PlatformAccount ||--o{ PlatformAdClassification : "conta + plataforma"
+    SubFormat       ||--o{ PlatformAdClassification : "regra 4 - formato + subformato"
+    Platform        ||--o{ PlatformFormatMapping : traduz
+    SubFormat       ||--o{ PlatformFormatMapping : "regra 4"
 ```
 
 ## Catálogo de entidades
@@ -376,13 +378,44 @@ erDiagram
 
 | Related entity | Type | Owning side | Business reason |
 |----------------|------|-------------|-----------------|
-| Channel | ManyToMany | Channel (`channel_buying_type` junction) | Buying type is valid on zero or more channels |
+| ChannelBuyingType | OneToMany | Link (`buying_type_id` FK) | Os canais em que este buying type é ofertado |
 
 **Note:** o catálogo define o que é *possível* num canal. O buying type efetivo é escolhido no Bridge, em `PlatformCampaignBinding` — nível campanha, vindo do plano de mídia (não de `billing_event` da plataforma).
 
 **Seeded by**
 
 - `src/system/database/seeds/media.seed.ts` — CPM, CPV, CPC, CPA, CPE
+
+---
+
+### ChannelBuyingType
+
+| | |
+|---|---|
+| **Papel de negócio** | Quais tipos de compra são válidos em cada canal. |
+| **Arquivo** | `src/media/platform/channel-buying-type.entity.ts` |
+| **Status** | Implementada |
+
+**Campos**
+
+| Campo | Significado |
+|---|---|
+| `channelId` / `buyingTypeId` | PK composta — é o par, e é o índice que a regra 3 ancora |
+
+**Por que é entidade explícita, e não `@JoinTable`.** O `PlatformCampaignBinding` precisa de
+FK composta `(channel_id, buying_type_id)` para impor a regra 3, e **FK não referencia tabela
+de junção que só existe em metadado de `@ManyToMany`** — não há classe para o `@ManyToOne`
+apontar. Promover a junção é o que a skill `create-entities` já prescreve para esse caso.
+
+**Relações**
+
+| Entidade | Tipo | Lado dono | Razão de negócio |
+|---|---|---|---|
+| Channel | ManyToOne | Link (`channel_id` FK) | O vínculo pertence ao canal |
+| BuyingType | ManyToOne | Link (`buying_type_id` FK) | O vínculo aponta o tipo de compra |
+
+`Channel.channelBuyingTypes` usa `cascade: ['insert','update']` + `orphanedRowAction: 'delete'`,
+então salvar o canal com a lista reatribuída sincroniza os vínculos e apaga os órfãos.
 
 ---
 
@@ -532,7 +565,6 @@ erDiagram
 | Client | ManyToOne | PlatformAccount (`client_id` FK) | The account belongs to exactly one client; a client may own many accounts |
 | Platform | ManyToOne | PlatformAccount (`platform_id` FK) | Account runs on one platform |
 | PlatformCampaignBinding | OneToMany | Binding (`platform_account_id` FK) | Conta contém vínculos de campanha |
-| PlatformAdGroupClassification | OneToMany | Classification (`platform_account_id` FK) | Conta contém classificações de ad group |
 | PlatformAdClassification | OneToMany | Classification (`platform_account_id` FK) | Conta contém exceções de formato |
 
 **Uniqueness:** `UNIQUE (platform_id, external_account_id)` — an `external_account_id` appears at most once per platform, so it resolves to exactly one client.
@@ -553,7 +585,7 @@ erDiagram
 |---|---|
 | **Papel de negócio** | Onde a campanha de negócio **nasce**. Vincula uma campanha nativa da plataforma a uma `Campaign` do Binder e carrega os rótulos de nível campanha. É o único lugar onde `campaign_id` é digitado. |
 | **Arquivo alvo** | `src/bridge/platform-campaign-binding.entity.ts` |
-| **Status** | **Alvo** — ainda não existe no código |
+| **Status** | Implementada |
 
 **Campos**
 
@@ -579,7 +611,7 @@ para a FK composta vinda de `PlatformAdGroupClassification`.
 |---|---|
 | **Papel de negócio** | Classificação de um ad group nos eixos declarados pela campanha. Não guarda campanha de negócio — alcança por FK composta até o binding. |
 | **Arquivo alvo** | `src/bridge/platform-ad-group-classification.entity.ts` |
-| **Status** | **Alvo** — ainda não existe no código |
+| **Status** | Implementada |
 
 **Campos**
 
@@ -604,7 +636,7 @@ para divergir.
 |---|---|
 | **Papel de negócio** | A atribuição de valor de eixo: "ad group 456 tem Território = Canais". Substitui o M2M solto `platform_object_map_sub_grouping`. |
 | **Arquivo alvo** | `src/bridge/platform-ad-group-grouping.entity.ts` |
-| **Status** | **Alvo** — ainda não existe no código |
+| **Status** | Implementada |
 
 **Campos**
 
@@ -628,7 +660,7 @@ para divergir.
 |---|---|
 | **Papel de negócio** | Formato de um ad. Existe apenas como **exceção** à tradução automática de `ad_format` nativo. |
 | **Arquivo alvo** | `src/bridge/platform-ad-classification.entity.ts` |
-| **Status** | **Alvo** — ainda não existe no código |
+| **Status** | Implementada |
 
 **Campos**
 
@@ -649,7 +681,7 @@ para divergir.
 |---|---|
 | **Papel de negócio** | Traduz o valor nativo de formato da plataforma para o vocabulário interno. Poucas linhas por plataforma (3 no TikTok hoje) em vez de N classificações por ad. |
 | **Arquivo alvo** | `src/bridge/platform-format-mapping.entity.ts` |
-| **Status** | **Alvo** — ainda não existe no código |
+| **Status** | Implementada |
 
 **Campos**
 
@@ -734,7 +766,8 @@ novo sobre ela, e não a remova fora do plano da iniciativa ativa.
 | Company | Client | OneToMany | `client.company_id` | Client | Empresa tem clientes |
 | Client | Campaign | OneToMany | `campaign.client_id` | Campaign | Cliente tem campanhas |
 | Platform | Channel | OneToMany | `channel.platform_id` | Channel | Plataforma tem canais |
-| Channel | BuyingType | ManyToMany | `channel_buying_type` | Channel | Canal suporta tipos de compra |
+| Channel | ChannelBuyingType | OneToMany | `channel_buying_type.channel_id` | Link | Canal oferta tipos de compra |
+| BuyingType | ChannelBuyingType | OneToMany | `channel_buying_type.buying_type_id` | Link | Tipo de compra é ofertado em canais |
 | Format | SubFormat | OneToMany | `sub_format.format_id` | SubFormat | Formato tem subformatos |
 | Campaign | Grouping | OneToMany | `grouping.campaign_id` | Grouping | Campanha declara seus eixos |
 | Grouping | SubGrouping | OneToMany | `sub_grouping.grouping_id` | SubGrouping | Eixo tem valores |
@@ -742,9 +775,10 @@ novo sobre ela, e não a remova fora do plano da iniciativa ativa.
 | Platform | PlatformAccount | OneToMany | `platform_account.platform_id` | PlatformAccount | Plataforma escopa contas |
 | PlatformAccount | PlatformCampaignBinding | OneToMany | `platform_campaign_binding.platform_account_id` | Binding | Conta contém vínculos de campanha |
 | Campaign | PlatformCampaignBinding | OneToMany | `platform_campaign_binding.campaign_id` | Binding | Campanha recebe vários vínculos (Always On) |
-| PlatformCampaignBinding | PlatformAdGroupClassification | OneToMany | FK composta `(platform_account_id, external_campaign_id)` | Classification | **A amarração** |
+| PlatformCampaignBinding | PlatformAdGroupClassification | OneToMany | FK composta `(platform_account_id, external_campaign_id, campaign_id, platform_id)` | Classification | **A amarração** — 4 colunas |
 | PlatformAdGroupClassification | PlatformAdGroupGrouping | OneToMany | `ad_group_classification_id` | Grouping row | Atribuição de eixo |
-| SubGrouping | PlatformAdGroupGrouping | OneToMany | FK composta `(grouping_id, sub_grouping_id)` | Grouping row | Valor coerente com o eixo |
+| SubGrouping | PlatformAdGroupGrouping | OneToMany | FK composta `(grouping_id, sub_grouping_id)` | Grouping row | Regra 4 — valor coerente com o eixo |
+| Grouping | PlatformAdGroupGrouping | OneToMany | FK composta `(campaign_id, grouping_id)` | Grouping row | Regra 5 — eixo é da campanha do binding |
 | PlatformAccount | PlatformAdClassification | OneToMany | `platform_ad_classification.platform_account_id` | Classification | Exceção de formato |
 | Platform | PlatformFormatMapping | OneToMany | `platform_format_mapping.platform_id` | Mapping | Tradução por plataforma |
 
@@ -754,7 +788,7 @@ novo sobre ela, e não a remova fora do plano da iniciativa ativa.
 **Junção `invite_company`** — `@JoinTable` em `Invite`, sem inverso em `Company`.
 Colunas `invite_id`, `company_id`.
 
-**Junção `channel_buying_type`** — `@JoinTable` em `Channel`, inverso em `BuyingType`.
+**`channel_buying_type` é entidade, não `@JoinTable`** — FK composta não referencia junção que só vive em metadado de `@ManyToMany`. `Channel.channelBuyingTypes` cascateia e apaga órfãos.
 Define quais modelos de compra são válidos num canal (catálogo apenas).
 
 **`platform_ad_group_grouping` não é `@ManyToMany`.** A PK composta e a FK composta exigem
