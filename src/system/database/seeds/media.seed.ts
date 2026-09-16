@@ -6,8 +6,8 @@ import { Platform } from '../../../media/platform/platform.entity';
 import { Channel } from '../../../media/platform/channel.entity';
 import { Format } from '../../../media/format/format.entity';
 import { SubFormat } from '../../../media/format/sub-format.entity';
-import { Grouping } from '../../../media/grouping/grouping.entity';
-import { SubGrouping } from '../../../media/grouping/sub-grouping.entity';
+import { Grouping } from '../../../business/grouping/grouping.entity';
+import { SubGrouping } from '../../../business/grouping/sub-grouping.entity';
 import {
   logSeed,
   syncChannelBuyingTypes,

@@ -2,8 +2,8 @@ import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Platform } from 'src/media/platform/platform.entity';
-import { PlatformAccount } from './platform-account.entity';
-import { PlatformObjectMap } from './platform-object-map.entity';
+import { PlatformAccount } from 'src/bridge/platform-account/platform-account.entity';
+import { PlatformObjectMap } from 'src/bridge/platform-object-map/platform-object-map.entity';
 import { PlatformObjectType } from 'src/shared/platform-object-type.enum';
 import {
   CatalogApiClient,

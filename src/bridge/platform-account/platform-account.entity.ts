@@ -11,7 +11,7 @@ import {
 } from 'typeorm';
 import { Client } from 'src/business/client/client.entity';
 import { Platform } from 'src/media/platform/platform.entity';
-import { PlatformObjectMap } from 'src/bridge/platform-object-map.entity';
+import { PlatformObjectMap } from 'src/bridge/platform-object-map/platform-object-map.entity';
 
 @Entity({ name: 'platform_account' })
 @Unique(['platform', 'externalAccountId'])

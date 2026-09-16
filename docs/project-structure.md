@@ -39,19 +39,18 @@ src/
 │   │   └── decorators/         # @Public(), @Private(), @CurrentUser()
 │   ├── user/  company/  user-company/  invite/
 ├── business/
-│   ├── business.module.ts      # agregador: Client, Campaign
-│   └── client/  campaign/
-├── media/
-│   ├── media.module.ts         # agregador: Platform, Format, Grouping
-│   ├── platform/               # Platform, Channel, BuyingType (catálogo global)
-│   ├── format/                 # Format, SubFormat (catálogo global)
+│   ├── business.module.ts      # agregador: Client, Campaign, Grouping
+│   ├── client/  campaign/
 │   └── grouping/               # Grouping, SubGrouping (escopo campanha)
-├── bridge/
-│   ├── bridge.module.ts
-│   ├── catalog-api.client.ts   # HTTP → binder_etl /catalog/{key}
-│   ├── catalog.*               # descoberta de identidades do lake
-│   ├── platform-account.*      # CRUD + bulk; troca de cliente cascateia filhos
-│   └── platform-object-map.*   # LEGADO — substituído pelos arquivos alvo abaixo
+├── media/
+│   ├── media.module.ts         # agregador: Platform, Format
+│   ├── platform/               # Platform, Channel, BuyingType (catálogo global)
+│   └── format/                 # Format, SubFormat (catálogo global)
+├── bridge/                     # configuração: qual objeto é o quê
+│   ├── bridge.module.ts        # agregador
+│   ├── catalog/                # descoberta de identidades do lake + catalog-api.client
+│   ├── platform-account/       # identificação conta → cliente
+│   └── platform-object-map/    # LEGADO — sai no passo de remoção
 ├── system/
 │   ├── database/               # TypeOrmModule.forRootAsync, migrations, seeds
 │   └── mail/                   # MailService (sem rotas HTTP)
@@ -60,19 +59,29 @@ src/
     └── role.enum.ts  role.util.ts  invite-status.enum.ts  platform-object-type.enum.ts
 ```
 
-### Arquivos alvo no Bridge
+### Organização do Bridge
 
-Não existem ainda — modelo alvo, DDL em [architecture.md](architecture.md):
+Uma pasta por **nível de declaração**, cada uma com seu feature module — o mesmo padrão
+agregador + features das outras camadas. `BridgeModule` não tem controller nem provider
+próprio; só compõe.
 
 ```
 src/bridge/
-├── platform-campaign-binding.*          # nível campaign
-├── platform-ad-group-classification.*   # nível ad_group
-├── platform-ad-group-grouping.entity.ts # atribuição de eixo
-├── platform-ad-classification.*         # exceção de formato no ad
-├── platform-format-mapping.*            # tradução de valor nativo
-└── enrichment-publication.*             # snapshot consumido pelo DAG
+├── bridge.module.ts
+├── catalog/                       # identidades do lake, sem entidade própria
+├── platform-account/              # identificação: conta → cliente
+├── campaign-binding/              # nível campaign: binding + channel + buying type
+├── ad-group-classification/       # nível ad_group: classificação + atribuição de eixo
+├── ad-classification/             # nível ad: exceção de formato + tradução de nativo
+└── platform-object-map/           # legado
 ```
+
+### `src/enrichment/` — camada irmã
+
+A publicação **não** é configuração do Bridge: tem outro consumidor (o DAG, não o operador),
+outra autenticação (chave de API, não JWT de usuário) e outro ciclo de vida (registro imutável,
+não configuração editável). Por isso mora em camada própria, que lê o Bridge e nunca o
+contrário. Entidades e rotas em [architecture.md](architecture.md).
 
 ## Módulos de camada
 
@@ -80,9 +89,9 @@ src/bridge/
 |---|---|---|
 | `SystemModule` | `DatabaseModule`, `MailModule` | `system/` |
 | `AccessModule` | `AuthModule`, `UserModule`, `CompanyModule`, `UserCompanyModule`, `InviteModule` | `access/` |
-| `BusinessModule` | `ClientModule`, `CampaignModule` | `business/` |
-| `MediaModule` | `PlatformModule`, `FormatModule`, `GroupingModule` | `media/` |
-| `BridgeModule` | Catalog, PlatformAccount, PlatformObjectMap | `bridge/` |
+| `BusinessModule` | `ClientModule`, `CampaignModule`, `GroupingModule` | `business/`, `media/` (grouping) |
+| `MediaModule` | `PlatformModule`, `FormatModule` | `media/` |
+| `BridgeModule` | `CatalogModule`, `PlatformAccountModule`, `PlatformObjectMapModule` | `bridge/` |
 
 Ordem em `AppModule`: `SystemModule` primeiro (DatabaseModule), depois `AccessModule` (AuthGuard).
 

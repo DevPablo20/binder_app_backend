@@ -21,7 +21,7 @@ import {
 } from './sub-grouping.dto';
 import { layerTag, Layer } from 'src/shared/swagger/layer-tags';
 
-@ApiTags(layerTag(Layer.Media, 'SubGrouping'))
+@ApiTags(layerTag(Layer.Business, 'SubGrouping'))
 @ApiCookieAuth()
 @Private(Role.Editor, Role.Superadmin)
 @Controller('media/sub-groupings')

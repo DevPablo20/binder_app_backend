@@ -23,15 +23,17 @@ código legado fora do passo correspondente.
 | Camada | Responde | Entidades |
 |---|---|---|
 | **Access** | quem usa o sistema, e por qual empresa | `User`, `Company`, `UserCompany`, `Invite` |
-| **Business** | a que contrato e iniciativa o dado pertence | `Client`, `Campaign` |
-| **Media** | que categorias existem para descrever mídia | `Platform`, `Channel`, `BuyingType`, `Format`, `SubFormat`, `Grouping`, `SubGrouping` |
+| **Business** | a que contrato e iniciativa o dado pertence | `Client`, `Campaign`, `Grouping`, `SubGrouping` |
+| **Media** | que categorias existem para descrever mídia | `Platform`, `Channel`, `BuyingType`, `Format`, `SubFormat` |
 | **Bridge** | qual objeto de plataforma corresponde a qual significado | binding e classificações |
 
 Fronteiras que não se cruzam:
 
 - **Access** não guarda taxonomia de campanha nem ID de plataforma.
 - **Business** não guarda ID nativo (`campaign_id`, `ad_group_id`, `ad_id`) — isso é Bridge.
-- **Media** define vocabulário; não sabe qual ad recebe qual rótulo.
+- **Media** define vocabulário de mídia — como ela foi comprada e entregue. Território e
+  Persona descrevem como o **cliente** fatia a campanha dele, não a mídia: por isso
+  `Grouping`/`SubGrouping` são Business, escopados em campanha.
 - **Bridge** referencia Business e Media por FK; nunca redefine suas regras.
 
 ## Arquitetura de enriquecimento (invariantes compartilhadas)
