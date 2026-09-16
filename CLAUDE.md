@@ -59,6 +59,14 @@ Valem nos três repositórios. Contradizer uma delas é bug, não escolha de imp
 | Território, Persona, … | ad_group | ad | configuração |
 | Format / Sub-format | ad | — | traduzido do nativo |
 
+**Identificação e classificação.** A tabela acima tem dois tipos de linha. *Identificação* diz
+a que entidade de negócio o objeto pertence — conta → cliente, campanha da plataforma →
+campanha de negócio. É declarada uma vez e herdada por toda a hierarquia abaixo; nenhum nível
+abaixo a digita. *Classificação* anexa atributos: channel, buying type, eixos, formato. O
+vocabulário disponível para classificar um nível é limitado pelo escopo que a identificação de
+cima estabeleceu — os eixos de um ad_group são os da campanha de negócio do binding dele, e
+não outros. Por isso o nível de ad_group só classifica: a identificação ele herda.
+
 > Este bloco é espelhado em `binder_app_frontend/CLAUDE.md` e `binder_etl/CLAUDE.md`.
 > Ao mudar, mude nos três.
 
@@ -73,18 +81,28 @@ Uma tabela por nível, porque cada nível declara coisas diferentes:
   para o binding: classificar ad_group de campanha não vinculada é impossível.
 - `platform_ad_group_grouping` — a atribuição de eixo. `PRIMARY KEY (ad_group_classification_id,
   grouping_id)` garante um valor por eixo; `FOREIGN KEY (grouping_id, sub_grouping_id)` garante
-  que o valor pertence ao eixo.
+  que o valor pertence ao eixo; `FOREIGN KEY (campaign_id, grouping_id)` garante que o eixo é
+  da campanha de negócio do binding.
 - `platform_ad_classification` — `format_id` / `sub_format_id`, só como exceção à tradução.
 
-DDL completa e o que cada constraint compra: [docs/architecture.md](docs/architecture.md).
+Quatro colunas são **cópia de escopo**, não declaração: `client_id` e `platform_id` no
+binding, `campaign_id` na classificação de ad_group e na atribuição de eixo. Cada uma entra numa
+FK composta que a impede de divergir da origem, e nenhuma delas é exposta em DTO.
+
+DDL completa, as cinco regras de escopo e o que cada constraint compra:
+[docs/architecture.md](docs/architecture.md).
 
 ## Regras duras
 
 - **`synchronize: false` sempre.** Mudança de schema só por migration.
 - **Matching sempre por id.** Nenhuma regra de nomenclatura, nenhum regex sobre nome de ad —
   nome é editável na plataforma e não serve de chave.
-- **Nunca copie a campanha de negócio** para um nível abaixo do binding. Derive por FK; uma
-  segunda cópia é uma divergência esperando acontecer.
+- **Cópia de escopo só amarrada por FK composta.** Para o banco impor que uma classificação
+  pertence ao escopo da identificação de cima, a coluna de escopo precisa estar na própria
+  linha — e então ela é amarrada por FK composta à origem, que é o que a impede de divergir.
+  Cópia **solta** de `campaign_id`, `client_id` ou `platform_id`, sem a FK composta, é
+  divergência esperando acontecer. A tabela das regras está em
+  [docs/architecture.md](docs/architecture.md).
 - **Uma conta de plataforma pertence a exatamente um cliente:**
   `UNIQUE (platform_id, external_account_id)` em `platform_account`. O fato do lake não
   carrega cliente, então o ETL só consegue casar pelas coordenadas externas — duas linhas

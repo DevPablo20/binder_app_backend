@@ -14,6 +14,55 @@ Além disso os três níveis são **linhas irmãs, não uma árvore**. Não há 
 que `ad → ad_group → campaign`, o Bridge guarda três linhas soltas. Nada impede que o map de
 um ad aponte para a Campanha X e o map do ad_group pai aponte para a Campanha Y.
 
+## Identificação e classificação
+
+Duas coisas diferentes acontecem no Bridge, e confundi-las é a origem da maior parte da
+complexidade acidental do modelo antigo.
+
+**Identificação** diz a que entidade de negócio um objeto da plataforma pertence: conta →
+cliente, campanha da plataforma → campanha de negócio. É declarada **uma vez**, no nível mais
+alto onde faz sentido, e herdada por toda a hierarquia abaixo pela estrutura do lake. Nenhum
+nível abaixo a digita.
+
+**Classificação** anexa atributos ao objeto: channel, buying type, eixos, formato.
+
+A regra que liga as duas:
+
+> O vocabulário disponível para classificar um nível é limitado pelo escopo que a
+> identificação de cima estabeleceu.
+
+Por isso o nível de ad_group **só classifica** — a identificação dele vem de ad_group →
+campanha da plataforma → binding. E por isso os eixos oferecidos a um ad_group são os da
+campanha de negócio daquele binding, não quaisquer eixos do sistema.
+
+### As cinco regras de escopo
+
+Todas têm a mesma forma, e todas viviam como validação imperativa no
+`platform-object-map.service.ts`:
+
+| # | A classificação | pertence ao escopo de | Constraint |
+|---|---|---|---|
+| 1 | campanha de negócio do binding | cliente da conta | `(campaign_id, client_id) → campaign (id, client_id)` |
+| 2 | channel do binding | plataforma da conta | `(channel_id, platform_id) → channel (id, platform_id)` |
+| 3 | buying type do binding | channel do binding | `(channel_id, buying_type_id) → channel_buying_type` |
+| 4 | sub-formato | formato | `(format_id, sub_format_id) → sub_format (format_id, id)` |
+| 5 | eixo do ad_group | campanha de negócio do binding | `(campaign_id, grouping_id) → grouping (campaign_id, id)` |
+
+### A técnica
+
+FK compara colunas **da mesma linha**, e `CHECK` não aceita subquery. Para o banco impor uma
+dessas regras, a coluna de escopo precisa estar fisicamente na linha:
+
+> **Copie a coluna de escopo para a linha e amarre a cópia por FK composta à origem.**
+
+A cópia não é uma segunda verdade, porque o banco não permite que ela divirja. São quatro no
+modelo alvo — `client_id` e `platform_id` no binding, `campaign_id` na classificação de
+ad_group e na atribuição de eixo — e cada uma existe para tornar uma regra expressável.
+
+O custo é tabular: sete índices únicos de apoio, porque toda FK composta exige índice único
+nas colunas referenciadas. O ganho é que o estado errado deixa de ser representável, em vez de
+ser recusado por um `if`.
+
 ## Modelo alvo
 
 Uma tabela por nível, porque cada nível declara coisas diferentes.
@@ -23,13 +72,30 @@ Uma tabela por nível, porque cada nível declara coisas diferentes.
 ```sql
 platform_campaign_binding
   id                       uuid  PK
-  platform_account_id      uuid  NOT NULL  FK → platform_account
+  platform_account_id      uuid  NOT NULL
   external_campaign_id     text  NOT NULL
-  campaign_id              uuid  NOT NULL  FK → campaign
-  channel_id               uuid  NOT NULL  FK → channel
-  buying_type_id           uuid  NOT NULL  FK → buying_type
+  campaign_id              uuid  NOT NULL
+  channel_id               uuid  NOT NULL
+  buying_type_id           uuid  NOT NULL
+  client_id                uuid  NOT NULL   -- cópia de escopo, vem da conta
+  platform_id              uuid  NOT NULL   -- cópia de escopo, vem da conta
 
   UNIQUE (platform_account_id, external_campaign_id)
+  UNIQUE (platform_account_id, external_campaign_id, campaign_id)   -- apoio ao nível ad_group
+
+  FOREIGN KEY (platform_account_id, client_id, platform_id)
+    REFERENCES platform_account (id, client_id, platform_id)
+  -- ↑ as duas cópias não podem divergir da conta
+
+  FOREIGN KEY (campaign_id, client_id)     REFERENCES campaign (id, client_id)    -- regra 1
+  FOREIGN KEY (channel_id, platform_id)    REFERENCES channel (id, platform_id)   -- regra 2
+  FOREIGN KEY (channel_id, buying_type_id)
+    REFERENCES channel_buying_type (channel_id, buying_type_id)                   -- regra 3
+
+-- requer índices únicos de apoio:
+CREATE UNIQUE INDEX ON platform_account (id, client_id, platform_id);
+CREATE UNIQUE INDEX ON campaign (id, client_id);
+CREATE UNIQUE INDEX ON channel (id, platform_id);
 ```
 
 ### Nível ad_group — só classificação por eixos
@@ -40,34 +106,56 @@ platform_ad_group_classification
   platform_account_id      uuid  NOT NULL
   external_ad_group_id     text  NOT NULL
   external_campaign_id     text  NOT NULL   -- derivado do catálogo, nunca digitado
+  campaign_id              uuid  NOT NULL   -- cópia de escopo, vem do binding
 
   UNIQUE (platform_account_id, external_ad_group_id)
+  UNIQUE (id, campaign_id)                  -- apoio à atribuição de eixo
 
-  FOREIGN KEY (platform_account_id, external_campaign_id)
-    REFERENCES platform_campaign_binding (platform_account_id, external_campaign_id)
+  FOREIGN KEY (platform_account_id, external_campaign_id, campaign_id)
+    REFERENCES platform_campaign_binding
+               (platform_account_id, external_campaign_id, campaign_id)
 ```
 
 Essa FK composta **é a amarração**. Torna impossível classificar um ad_group cuja campanha não
-foi vinculada. E como a campanha de negócio é alcançada *através* do binding em vez de copiada,
-não existe segunda cópia para divergir: o cenário em que o map de um ad aponta para campanha
-diferente da do seu ad_group deixa de ser representável.
+foi vinculada, e o cenário em que o map de um ad aponta para campanha diferente da do seu
+ad_group deixa de ser representável.
+
+O `campaign_id` aqui é cópia de escopo, não declaração: ele entra na mesma FK composta que o
+binding, então não tem como apontar para outra campanha. **O DTO não expõe esse campo** — o
+backend o lê do binding. Se o operador pudesse digitá-lo, a cópia deixaria de ser cópia.
+
+**Trocar a campanha de negócio de um binding já classificado** apaga as
+`platform_ad_group_classification` daquele binding, na mesma transação e antes do update: os
+eixos eram da campanha antiga e a FK da regra 5 barraria a operação. Os ad_groups voltam para a
+fila de pendências, que é o sinal correto para quem opera. Mesmo comportamento de trocar o
+cliente de uma conta, que já apaga os filhos hoje.
 
 ### A atribuição de eixo
 
 ```sql
 platform_ad_group_grouping
   ad_group_classification_id  uuid  NOT NULL
-  grouping_id                 uuid  NOT NULL   -- desnormalizado de propósito
+  campaign_id                 uuid  NOT NULL   -- cópia de escopo, vem da classificação
+  grouping_id                 uuid  NOT NULL
   sub_grouping_id             uuid  NOT NULL
 
   PRIMARY KEY (ad_group_classification_id, grouping_id)
   -- ↑ um único valor por eixo, garantido pelo banco
 
+  FOREIGN KEY (ad_group_classification_id, campaign_id)
+    REFERENCES platform_ad_group_classification (id, campaign_id)
+  -- ↑ a cópia de campanha não pode divergir da classificação
+
+  FOREIGN KEY (campaign_id, grouping_id)
+    REFERENCES grouping (campaign_id, id)
+  -- ↑ regra 5: o eixo é da campanha de negócio do binding
+
   FOREIGN KEY (grouping_id, sub_grouping_id)
     REFERENCES sub_grouping (grouping_id, id)
-  -- ↑ o valor pertence ao eixo declarado, garantido pelo banco
+  -- ↑ regra 4: o valor pertence ao eixo declarado
 
--- requer índice único de apoio:
+-- requer índices únicos de apoio:
+CREATE UNIQUE INDEX ON grouping (campaign_id, id);
 CREATE UNIQUE INDEX ON sub_grouping (grouping_id, id);
 ```
 
@@ -113,12 +201,16 @@ pode vir nulo; e `ad_format` não carrega duração (não separa 15s de 30s), en
 | campaign exige channel e buying type | `NOT NULL` |
 | ad_group só aceita sub-agrupamentos | a tabela não tem as outras colunas |
 | ad só aceita format e sub-format | idem |
-| sub-agrupamento pertence à campanha do map | FK composta + cadeia de FK |
-| sub-format pertence ao format | FK composta `(format_id, id)` |
 | um valor por eixo | `PRIMARY KEY` |
 | ad e ad_group na mesma campanha | estruturalmente irrepresentável |
+| `assertClientAlignment` — campanha é do cliente da conta | regra 1 |
+| `assertChannelPlatform` — channel é da plataforma da conta | regra 2 |
+| `assertBuyingTypeOnChannel` — buying type vale no channel | regra 3 |
+| `assertFormatSubFormatConsistency` — sub-formato é do formato | regra 4 |
+| `loadSubGroupingsForCampaign` — eixo é da campanha do map | regra 5 |
 
-`assertLevelFields` desaparece.
+`assertLevelFields` desaparece junto com as cinco: cada tabela passa a ter só as colunas do
+seu nível, então não há o que validar.
 
 ## Os quatro papéis da taxonomia
 
@@ -126,7 +218,7 @@ Hoje indistinguíveis no schema, agora separados:
 
 | Papel | Exemplo | Onde vive |
 |---|---|---|
-| **Eixo** | "Território" | `Grouping` — escopado em campanha, **sem mudança** |
+| **Eixo** | "Território" | `Grouping` — escopado em campanha, schema **sem mudança** |
 | **Vocabulário** | Crédito, Canais, Captação… | `SubGrouping` — **sem mudança** |
 | **Atribuição** | ad_group 456 → Canais | `platform_ad_group_grouping` |
 | **Resolução** | ad 789 herda Canais | join no Spark, fora deste repo |
@@ -135,6 +227,12 @@ O escopo campanha do `Grouping` **está correto**: uma campanha com três plataf
 mesmos sub-agrupamentos em todas elas, porque o vocabulário pende da campanha e não da
 plataforma. É isso que permite perguntar "dentro de Always On, qual plataforma teve o melhor
 CTR em Cliente Azul".
+
+`Grouping` e `SubGrouping` pertencem à camada **Business**, não a Media. Channel e Format
+descrevem como a mídia foi comprada e entregue; Território e Persona descrevem como o cliente
+fatia a própria campanha — e é por isso que pendem de `Campaign`. Enquanto moram em
+`src/media/grouping/`, são a única entidade de Media com FK para Business; a mudança de módulo
+faz o escopo por campanha deixar de parecer exceção.
 
 ## Buying type não é billing_event
 
