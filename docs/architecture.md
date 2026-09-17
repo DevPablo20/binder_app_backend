@@ -281,7 +281,7 @@ Daí a consequência que governa todo o resto: uma publicação é criada **uma 
 enrichment_publication
   id            uuid  PK
   published_at  timestamptz
-  published_by  uuid  FK → user
+  published_by_id  uuid  FK → user
   status        enum  pending | materialized | superseded
 
 enrichment_run

@@ -25,6 +25,9 @@ export class Client {
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive: boolean;
 
+  @Column({ name: 'company_id', type: 'uuid' })
+  companyId: string;
+
   @ManyToOne(() => Company, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'company_id', referencedColumnName: 'id' })
   company: Company;

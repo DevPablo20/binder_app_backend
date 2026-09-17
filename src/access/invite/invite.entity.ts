@@ -65,6 +65,9 @@ export class Invite {
   })
   cancelledAt?: Date | null;
 
+  @Column({ name: 'invited_by_id', type: 'uuid' })
+  invitedById: string;
+
   @ManyToOne(() => User, (user) => user.invites, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'invited_by_id', referencedColumnName: 'id' })
   invitedBy: User;

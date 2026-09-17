@@ -17,9 +17,15 @@ export class UserCompany {
   @PrimaryGeneratedColumn('uuid', { name: 'id' })
   id: string;
 
+  @Column({ name: 'user_id', type: 'uuid' })
+  userId: string;
+
   @ManyToOne(() => User, (user) => user.userCompanies, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'user_id', referencedColumnName: 'id' })
   user: User;
+
+  @Column({ name: 'company_id', type: 'uuid' })
+  companyId: string;
 
   @ManyToOne(() => Company, (company) => company.userCompanies, {
     onDelete: 'CASCADE',

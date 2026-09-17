@@ -117,7 +117,7 @@ erDiagram
 | Field | Business meaning |
 |-------|------------------|
 | `name` | Full company unit name (unique) |
-| `status` | Whether the company unit is active; inactive companies are excluded from `companyIds` |
+| `isActive` | Whether the company unit is active; inactive companies are excluded from `companyIds` |
 | `description` | Human-readable description of the unit |
 | `createdAt` / `updatedAt` | Audit timestamps |
 
@@ -149,7 +149,7 @@ erDiagram
 |-------|------------------|
 | `user` | The user granted access |
 | `company` | The company unit being accessed |
-| `status` | `true` = permitted; `false` = soft-revoked (link kept for audit, access denied) |
+| `isActive` | `true` = permitted; `false` = soft-revoked (link kept for audit, access denied) |
 | `createdAt` / `updatedAt` | Audit timestamps |
 
 **Used by**
@@ -341,7 +341,7 @@ erDiagram
 | `description` | Human-readable description |
 | `isActive` | Whether the channel entry is active |
 | `platform` | Parent platform |
-| `buyingTypes` | Allowed buying models on this channel |
+| `channelBuyingTypes` | Allowed buying models on this channel, via the `ChannelBuyingType` link |
 | `createdAt` / `updatedAt` | Audit timestamps |
 
 **Relationships**
@@ -483,8 +483,8 @@ então salvar o canal com a lista reatribuída sincroniza os vínculos e apaga o
 | | |
 |---|---|
 | **Business role** | Campaign-scoped strategic dimension type (Territory, Theme). Options vary per campaign. Scoped to Binder campaign intentionally so every ETL object mapped under that campaign can reuse the same dimensions. |
-| **Source file** | `src/media/grouping/grouping.entity.ts` |
-| **Module** | `src/media/grouping/grouping.module.ts` |
+| **Source file** | `src/business/grouping/grouping.entity.ts` |
+| **Module** | `src/business/grouping/grouping.module.ts` |
 
 **Key fields**
 
@@ -514,8 +514,8 @@ então salvar o canal com a lista reatribuída sincroniza os vínculos e apaga o
 | | |
 |---|---|
 | **Business role** | Value under a campaign grouping (e.g. Territory → Canais, Crédito, Oportunidades e Clientes). |
-| **Source file** | `src/media/grouping/sub-grouping.entity.ts` |
-| **Module** | `src/media/grouping/grouping.module.ts` |
+| **Source file** | `src/business/grouping/sub-grouping.entity.ts` |
+| **Module** | `src/business/grouping/grouping.module.ts` |
 
 **Key fields**
 
@@ -543,18 +543,18 @@ então salvar o canal com a lista reatribuída sincroniza os vínculos e apaga o
 
 | | |
 |---|---|
-| **Business role** | Links a client's platform ad account to Binder. ETL `account_id` joins here to resolve client, company, and platform context. The same ad account may serve **more than one client** — a real agency case — so it yields one row per client. |
-| **Source file** | `src/bridge/platform-account.entity.ts` |
-| **Module** | `src/bridge/bridge.module.ts` |
+| **Business role** | Links a client's platform ad account to Binder. ETL `account_id` joins here to resolve client, company, and platform context. An ad account belongs to **exactly one client** — the lake fact carries no client, so a shared account would multiply metric rows on the enrichment join. |
+| **Source file** | `src/bridge/platform-account/platform-account.entity.ts` |
+| **Module** | `src/bridge/platform-account/platform-account.module.ts` |
 
 **Key fields**
 
 | Field | Business meaning |
 |-------|------------------|
-| `externalAccountId` | Platform-native account ID from ETL (unique per platform **+ client**) |
+| `externalAccountId` | Platform-native account ID from ETL (unique per platform) |
 | `name` | Human-readable label (e.g. "Caixa Google Ads") |
 | `isActive` | Whether this account mapping is active |
-| `client` | Client this row binds the account to (same account may have sibling rows for other clients) |
+| `client` | Client this row binds the account to — exactly one, with no sibling rows for other clients |
 | `platform` | Which platform catalog applies |
 | `createdAt` / `updatedAt` | Audit timestamps |
 
@@ -595,7 +595,7 @@ então salvar o canal com a lista reatribuída sincroniza os vínculos e apaga o
 | `externalCampaignId` | ID nativo da campanha na plataforma |
 | `campaign` | Campanha de negócio alvo — `NOT NULL` |
 | `channel` | Canal — `NOT NULL` |
-| `buyingType` | Tipo de compra do plano de mídia — `NOT NULL` |
+| `buyingTypeId` | Tipo de compra do plano de mídia — `NOT NULL`. A relação é `channelBuyingType`, o par `(channel, buying type)` que a regra 3 exige |
 
 **Unicidade:** `UNIQUE (platform_account_id, external_campaign_id)` — também serve de alvo
 para a FK composta vinda de `PlatformAdGroupClassification`.
@@ -617,7 +617,7 @@ para a FK composta vinda de `PlatformAdGroupClassification`.
 
 | Campo | Significado |
 |---|---|
-| `platformAccount` | Escopo da conta |
+| `platformAccountId` | Escopo da conta. Não há relação direta para `PlatformAccount` de propósito — a FK composta para o binding já fixa a coluna |
 | `externalAdGroupId` | ID nativo do ad group |
 | `externalCampaignId` | **Derivado do catálogo, nunca digitado.** Alvo da FK composta |
 
@@ -666,7 +666,7 @@ para divergir.
 
 | Campo | Significado |
 |---|---|
-| `platformAccount` | Escopo da conta |
+| `platformAccountId` / `platformAccount` | Escopo da conta, amarrado pela FK composta `(platform_account_id, platform_id)` |
 | `externalAdId` | ID nativo do ad |
 | `format` / `subFormat` | Sobrescrita manual da tradução |
 
@@ -689,7 +689,7 @@ para divergir.
 |---|---|
 | `platform` | Plataforma de origem |
 | `nativeValue` | Valor cru, ex.: `CAROUSEL_ADS`, `SINGLE_VIDEO` |
-| `format` / `subFormat` | Destino no vocabulário Binder |
+| `formatId` / `subFormat` | Destino no vocabulário Binder. A relação é para `SubFormat`, pelo par `(format_id, sub_format_id)` da regra 4 |
 
 **Unicidade:** `UNIQUE (platform_id, native_value)`
 
@@ -782,7 +782,7 @@ novo sobre ela, e não a remova fora do plano da iniciativa ativa.
 | PlatformAccount | PlatformAdClassification | OneToMany | `platform_ad_classification.platform_account_id` | Classification | Exceção de formato |
 | Platform | PlatformFormatMapping | OneToMany | `platform_format_mapping.platform_id` | Mapping | Tradução por plataforma |
 
-**Junção `user_company`** — entidade explícita com `id`, `status` e timestamps.
+**Junção `user_company`** — entidade explícita com `id`, `isActive` e timestamps.
 `UNIQUE (user_id, company_id)`; `status=false` é revogação suave sem exigir novo login.
 
 **Junção `invite_company`** — `@JoinTable` em `Invite`, sem inverso em `Company`.

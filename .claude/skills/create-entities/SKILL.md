@@ -69,6 +69,12 @@ export class FeatureName {
 
 - PK uuid: `@PrimaryGeneratedColumn('uuid', { name: 'id' })`
 - Colunas em **snake_case** via `name` explícito (`isActive` → `is_active`)
+- **A propriedade espelha a coluna.** `snake_case(propriedade)` tem que ser igual ao `name`:
+  `clientId` ↔ `client_id`, `publicationId` ↔ `publication_id`. Propriedade com nome que não
+  corresponde a nenhuma coluna parece coluna fantasma para quem lê a entidade e vai procurar no
+  banco. FK de usuário segue `<acao>_by_id` (`invited_by_id`, `published_by_id`). DDL escrita
+  em documento de decisão não manda na nomenclatura — a convenção do código vence, e o documento
+  é que se corrige
 - Timestamps com `timestamp with time zone`
 - Campos sensíveis: `select: false` (ver `password` em `User`)
 - **Nunca** decorators de class-validator em entidade — validação é no DTO

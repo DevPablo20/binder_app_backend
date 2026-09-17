@@ -116,6 +116,11 @@ DDL completa, as cinco regras de escopo e o que cada constraint compra:
   de duas FKs compostas cada, e só a relação declarada primeiro é dona da coluna — atribuir a
   entidade (`binding.campaign = campanha`) faz o valor gravado depender da ordem dos decorators.
   Atribua `binding.campaignId = id`. Ler com `relations: {…}` é livre.
+- **Propriedade de entidade espelha o nome da coluna.** `snake_case(propriedade) == name` do
+  `@Column`/`@JoinColumn` — `clientId` ↔ `client_id`, `published_by_id` ↔ `publishedById`. Toda
+  coluna de FK também ganha a propriedade escalar explícita, além da relação. Propriedade cujo
+  nome não existe como coluna vira "coluna fantasma": quem lê a entidade vai procurá-la no banco
+  e não acha.
 - **Escritas do Bridge são Superadmin.** `assertSuperadmin` antes de mutação.
 - **Máquina não é usuário.** Rotas consumidas pelo DAG são `@Public()` para o `AuthGuard` e
   protegidas por guard próprio, com chave de API em header. Não crie linha em `user` para robô:
