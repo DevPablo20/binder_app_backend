@@ -280,24 +280,49 @@ Daí a consequência que governa todo o resto: uma publicação é criada **uma 
 ```sql
 enrichment_publication
   id            uuid  PK
-  published_at  timestamptz
-  published_by_id  uuid  FK → user
-  status        enum  pending | materialized | superseded
+  published_at  timestamptz  NOT NULL  DEFAULT now()
+  published_by_id  uuid  NULL  FK → user
+  status        enum  pending | materialized | superseded  NOT NULL  DEFAULT 'pending'
 
 enrichment_run
   id              uuid  PK
-  publication_id  uuid  NOT NULL  FK → enrichment_publication
-  started_at      timestamptz
-  finished_at     timestamptz
-  status          enum  success | failed
-  error_message   text
+  publication_id  uuid  NULL  FK → enrichment_publication  ON DELETE CASCADE
+  started_at      timestamptz  NOT NULL  DEFAULT now()
+  finished_at     timestamptz  NULL
+  status          enum  running | success | failed  NOT NULL  DEFAULT 'running'
+  error_message   text  NULL
+
+enrichment_snapshot_campaign
+  id                    uuid  PK
+  publication_id        uuid  NOT NULL  FK → enrichment_publication  ON DELETE CASCADE
+  platform_key          text  NOT NULL   -- platform.catalog_key resolvido
+  external_campaign_id  text  NOT NULL
+  client_name           text  NOT NULL
+  campaign_name         text  NOT NULL
+  channel_name          text  NOT NULL
+  buying_type_name      text  NOT NULL
+
+  UNIQUE (publication_id, platform_key, external_campaign_id)
 ```
+
+A `UNIQUE` do snapshot é a `UNIQUE (platform_id, external_campaign_id)` do binding congelada aqui
+dentro. Como a chave do join é frouxa de propósito (o id do objeto, sem a conta), dois candidatos
+para o mesmo id duplicariam a linha do fato e dobrariam a métrica — com ela, nem um bug futuro no
+Bridge publica um snapshot que quebre a conservação.
+
+`publication_id` é **nulo** na rodada que acontece antes de existir qualquer publicação: o gold
+enriquecido é construído com configuração vazia, e a rodada registra isso em vez de inventar uma
+publicação que ninguém publicou. `published_by_id` só é nulo em publicação que não veio de uma pessoa.
+
+`running` existe porque rodada aberta precisa de representação — é o estado inicial, e rodada
+presa aparece como `running` com `started_at` velho. O que **não** existe é `processing` na
+*publicação*: a operação é idempotente e o Airflow roda uma instância por vez.
 
 | Status da publicação | Significado |
 |---|---|
 | `pending` | publicada, nunca materializada com sucesso |
 | `materialized` | materializada com sucesso ao menos uma vez |
-| `superseded` | uma publicação mais nova chegou antes desta ser usada |
+| `superseded` | descartada sem nunca ter sido usada por uma rodada |
 
 **Falha é da rodada, não da publicação.** Uma publicação já materializada não volta a ser
 inválida porque a rodada de amanhã quebrou por erro transitório de Spark. Contar falhas
@@ -310,13 +335,19 @@ morrer no meio.
 ### Ciclo
 
 - Edições nas tabelas do Bridge não afetam nada no lake.
-- O backend compara `MAX(updated_at)` das tabelas com o `published_at` da última publicação e
-  sabe quantos objetos mudaram.
+- O backend compara `updated_at` com o `published_at` da última publicação e conta **duas coisas
+  separadas**: vínculos criados ou editados, e nomes renomeados no vocabulário (`client`,
+  `campaign`, `channel`, `buying_type`) que algum vínculo referencia. São sintomas diferentes —
+  o primeiro é configuração nova, o segundo é nome velho preso no gold, já que o snapshot congela
+  valor resolvido. Sem contar o segundo, renomear "Embratur" não avisaria ninguém.
 - Publicar **congela um snapshot** da configuração sob aquele `publication_id`.
-- Publicar de novo antes de a anterior ser usada marca a anterior como `superseded`: como o
-  gold é `Overwrite` full, materializar a antiga seria trabalho jogado fora.
-- Cada rodada do DAG usa a publicação mais recente, abre um `enrichment_run` e o fecha com
-  `success` ou `failed`. Rodada que falha não trava nada — a do dia seguinte tenta de novo,
+- Publicar de novo marca como `superseded` a publicação pendente que **não tem nenhuma rodada**:
+  como o gold é `Overwrite` full, materializar a antiga seria trabalho jogado fora. Publicação
+  que já foi usada por alguma rodada não é descartada — ela é história, e uma rodada que fecha com
+  `success` a marca `materialized` mesmo que uma publicação mais nova já tenha chegado. Quem
+  rodou, rodou.
+- Cada rodada do DAG usa a publicação mais recente que não foi descartada, abre um
+  `enrichment_run` e o fecha com `success` ou `failed`. Rodada que falha não trava nada — a do dia seguinte tenta de novo,
   porque reconstruir é o trabalho normal do dia. Não há limite de tentativas: travar
   congelaria o gold também em relação ao fato novo.
 - **Sem publicação alguma, o gold enriquecido é construído com configuração vazia.** Snapshot
@@ -351,6 +382,18 @@ O `AuthGuard` global exige JWT de um usuário real do banco, o que não serve pa
 não tem empresa, não tem e-mail, não faz login, e o token expiraria. As rotas do DAG são
 `@Public()` para o `AuthGuard` e protegidas por um guard próprio que confere uma **chave de API
 em header** — sem usuário fantasma na tabela `user`.
+
+| Chamada | Rota | O quê |
+|---|---|---|
+| começo | `POST /enrichment/dag/runs` | abre a rodada **e** devolve o snapshot da publicação corrente |
+| fim | `PATCH /enrichment/dag/runs/:id` | fecha com `success` ou `failed` |
+
+São duas, não três: ler a publicação **é** abrir a rodada. Sem publicação alguma, a primeira
+devolve `publicationId` nulo e lista de campanhas vazia — não é erro, é o passa-through puro.
+
+Do lado do operador, as rotas são JWT como o resto do sistema: `GET
+/enrichment/publications/pending-changes` alimenta o alerta da tela, `POST /enrichment/publications`
+publica (Superadmin), e os `GET` de histórico e detalhe mostram o que foi congelado.
 
 ## Invariante de conservação
 

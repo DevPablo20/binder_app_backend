@@ -14,7 +14,8 @@ materializa o gold enriquecido → o frontend filtra por coluna.
 `binder_etl/docs/plans/bridge-enrichment.md` (repositório irmão): passos, próxima ação,
 decisões em aberto e o que existe hoje × alvo neste repo.
 
-**O modelo Bridge alvo ainda não existe no código.** Antes de afirmar que uma entidade ou
+As tabelas do Bridge e a camada de enriquecimento já existem; o legado `PlatformObjectMap`
+continua de pé porque o frontend ainda fala com ele. Antes de afirmar que uma entidade ou
 endpoint existe, confira `src/` e a seção "Estado atual × alvo" do plano. Não "conserte" o
 código legado fora do passo correspondente.
 
@@ -26,6 +27,7 @@ código legado fora do passo correspondente.
 | **Business** | a que contrato e iniciativa o dado pertence | `Client`, `Campaign`, `Grouping`, `SubGrouping` |
 | **Media** | que categorias existem para descrever mídia | `Platform`, `Channel`, `BuyingType`, `ChannelBuyingType`, `Format`, `SubFormat` |
 | **Bridge** | qual objeto de plataforma corresponde a qual significado | binding e classificações |
+| **Enrichment** | qual configuração o lake usou, e quando | `EnrichmentPublication`, `EnrichmentRun`, snapshot |
 
 Fronteiras que não se cruzam:
 
@@ -35,6 +37,9 @@ Fronteiras que não se cruzam:
   Persona descrevem como o **cliente** fatia a campanha dele, não a mídia: por isso
   `Grouping`/`SubGrouping` são Business, escopados em campanha.
 - **Bridge** referencia Business e Media por FK; nunca redefine suas regras.
+- **Enrichment** lê o Bridge e o congela; o Bridge nunca lê o Enrichment. Snapshot guarda
+  **valor resolvido, nunca id** — guardar `campaign_id` faria renomear a campanha mudar o
+  resultado de uma publicação supostamente congelada.
 
 ## Arquitetura de enriquecimento (invariantes compartilhadas)
 
@@ -125,6 +130,11 @@ DDL completa, as cinco regras de escopo e o que cada constraint compra:
 - **Máquina não é usuário.** Rotas consumidas pelo DAG são `@Public()` para o `AuthGuard` e
   protegidas por guard próprio, com chave de API em header. Não crie linha em `user` para robô:
   `UserSignature` pressupõe pessoa (role, empresas) e o JWT expira.
+- **Recusa do banco vira erro de negócio.** Como a amarração é constraint, a violação chega como
+  erro do Postgres — traduza com `asConstraintViolation` (`src/shared/db-error.util.ts`), que
+  casa pelas **colunas** da constraint, lidas do `detail`. Nome de constraint não serve: o
+  TypeORM gera com hash e ele muda a cada mexida na entidade. Sem tradução, a regra vira 500 e
+  fica invisível na tela.
 - Validação em DTO com `class-validator`, nunca em entidade. Todo campo exposto no Swagger
   leva `@ApiProperty()`.
 - Repositórios via `@InjectRepository(Entity)` — sem token de provider customizado.

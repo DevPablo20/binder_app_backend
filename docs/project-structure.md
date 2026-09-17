@@ -46,6 +46,11 @@ src/
 │   ├── media.module.ts         # agregador: Platform, Format
 │   ├── platform/               # Platform, Channel, BuyingType, ChannelBuyingType
 │   └── format/                 # Format, SubFormat (catálogo global)
+├── enrichment/                 # publicação da configuração para o lake
+│   ├── enrichment.module.ts    # agregador
+│   ├── publication/            # enrichment_publication + snapshot congelado
+│   ├── run/                    # enrichment_run
+│   └── dag/                    # rotas do DAG, guard de chave de API
 ├── bridge/                     # configuração: qual objeto é o quê
 │   ├── bridge.module.ts        # agregador
 │   ├── catalog/                # descoberta de identidades do lake + catalog-api.client
@@ -84,7 +89,19 @@ src/bridge/
 A publicação **não** é configuração do Bridge: tem outro consumidor (o DAG, não o operador),
 outra autenticação (chave de API, não JWT de usuário) e outro ciclo de vida (registro imutável,
 não configuração editável). Por isso mora em camada própria, que lê o Bridge e nunca o
-contrário. Entidades e rotas em [architecture.md](architecture.md).
+contrário.
+
+```
+src/enrichment/
+├── enrichment.module.ts
+├── publication/                   # publicação + snapshot; rotas do operador (JWT)
+├── run/                           # rodada; sem rota própria, serve o DAG
+└── dag/                           # rotas da máquina: @Public() + ApiKeyGuard
+```
+
+Dois controllers porque a autenticação difere: `PublicationController` é JWT como o resto do
+sistema, `DagController` é chave de API. Misturar os dois no mesmo controller esconde qual rota é
+de robô. Modelo e ciclo em [architecture.md](architecture.md).
 
 ## Módulos de camada
 
@@ -95,6 +112,7 @@ contrário. Entidades e rotas em [architecture.md](architecture.md).
 | `BusinessModule` | `ClientModule`, `CampaignModule`, `GroupingModule` | `business/`, `media/` (grouping) |
 | `MediaModule` | `PlatformModule`, `FormatModule` | `media/` |
 | `BridgeModule` | `CatalogModule`, `PlatformAccountModule`, `CampaignBindingModule`, `AdGroupClassificationModule`, `AdClassificationModule`, `PlatformObjectMapModule` | `bridge/` |
+| `EnrichmentModule` | `PublicationModule`, `RunModule`, `DagModule` | `enrichment/` |
 
 Ordem em `AppModule`: `SystemModule` primeiro (DatabaseModule), depois `AccessModule` (AuthGuard).
 
@@ -116,6 +134,8 @@ relações carregadas explicitamente por `relations: { … }`.
 - JWT no cookie `access_token` (também aceita header `Authorization`)
 - `@CurrentUser()` devolve `UserSignature` (`id`, `name`, `role`, `companyIds`)
 - Rotas públicas: `POST /access/auth/login`, `logout`, `password/forgot`, `password/reset`
+- Rotas de máquina: `enrichment/dag/*` são `@Public()` para o `AuthGuard` e protegidas pelo
+  `ApiKeyGuard`, que confere o header `x-api-key` contra `ENRICHMENT_API_KEY`
 
 ## Swagger
 

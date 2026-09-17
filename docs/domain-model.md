@@ -18,6 +18,8 @@ Modelo de acesso multi-empresa sobre uma arquitetura em camadas:
 - **Media** — catálogos de vocabulário (`Platform`, `Channel`, `BuyingType`, `Format`,
   `SubFormat`, `Grouping`, `SubGrouping`)
 - **Bridge** — liga IDs nativos de plataforma ao significado de negócio
+- **Enrichment** — congela a configuração do Bridge numa publicação e registra cada rodada do
+  DAG que a consumiu
 
 Autenticação é por usuário (um login, um JWT); o acesso a empresas é resolvido em cada
 requisição a partir das associações `UserCompany` ativas.
@@ -28,9 +30,9 @@ requisição a partir das associações `UserCompany` ativas.
 
 ## Diagrama de relacionamentos
 
-Estado **alvo** desta arquitetura. O código ainda tem `PlatformObjectMap` no lugar das tabelas
-de Bridge — o que existe hoje × alvo está no plano da iniciativa ativa
-(`binder_etl/docs/plans/bridge-enrichment.md`).
+As tabelas de Bridge e de Enrichment abaixo existem no código. `PlatformObjectMap` continua ao
+lado delas, legado, até o frontend sair dele — o que existe hoje × alvo está no plano da
+iniciativa ativa (`binder_etl/docs/plans/bridge-enrichment.md`).
 
 ```mermaid
 erDiagram
@@ -63,7 +65,14 @@ erDiagram
     SubFormat       ||--o{ PlatformAdClassification : "regra 4 - formato + subformato"
     Platform        ||--o{ PlatformFormatMapping : traduz
     SubFormat       ||--o{ PlatformFormatMapping : "regra 4"
+
+    User                   ||--o{ EnrichmentPublication : publica
+    EnrichmentPublication  ||--o{ EnrichmentSnapshotCampaign : "congela valores"
+    EnrichmentPublication  ||--o{ EnrichmentRun : "usada em muitas rodadas"
 ```
+
+O snapshot **não** tem FK para o Bridge: ele copia valor resolvido, não referência. É o que
+torna a rodada reprodutível quando alguém renomeia uma campanha no dia seguinte.
 
 ## Catálogo de entidades
 
@@ -584,7 +593,7 @@ então salvar o canal com a lista reatribuída sincroniza os vínculos e apaga o
 | | |
 |---|---|
 | **Papel de negócio** | Onde a campanha de negócio **nasce**. Vincula uma campanha nativa da plataforma a uma `Campaign` do Binder e carrega os rótulos de nível campanha. É o único lugar onde `campaign_id` é digitado. |
-| **Arquivo alvo** | `src/bridge/platform-campaign-binding.entity.ts` |
+| **Arquivo** | `src/bridge/campaign-binding/platform-campaign-binding.entity.ts` |
 | **Status** | Implementada |
 
 **Campos**
@@ -610,7 +619,7 @@ para a FK composta vinda de `PlatformAdGroupClassification`.
 | | |
 |---|---|
 | **Papel de negócio** | Classificação de um ad group nos eixos declarados pela campanha. Não guarda campanha de negócio — alcança por FK composta até o binding. |
-| **Arquivo alvo** | `src/bridge/platform-ad-group-classification.entity.ts` |
+| **Arquivo** | `src/bridge/ad-group-classification/platform-ad-group-classification.entity.ts` |
 | **Status** | Implementada |
 
 **Campos**
@@ -635,7 +644,7 @@ para divergir.
 | | |
 |---|---|
 | **Papel de negócio** | A atribuição de valor de eixo: "ad group 456 tem Território = Canais". Substitui o M2M solto `platform_object_map_sub_grouping`. |
-| **Arquivo alvo** | `src/bridge/platform-ad-group-grouping.entity.ts` |
+| **Arquivo** | `src/bridge/ad-group-classification/platform-ad-group-grouping.entity.ts` |
 | **Status** | Implementada |
 
 **Campos**
@@ -659,7 +668,7 @@ para divergir.
 | | |
 |---|---|
 | **Papel de negócio** | Formato de um ad. Existe apenas como **exceção** à tradução automática de `ad_format` nativo. |
-| **Arquivo alvo** | `src/bridge/platform-ad-classification.entity.ts` |
+| **Arquivo** | `src/bridge/ad-classification/platform-ad-classification.entity.ts` |
 | **Status** | Implementada |
 
 **Campos**
@@ -680,7 +689,7 @@ para divergir.
 | | |
 |---|---|
 | **Papel de negócio** | Traduz o valor nativo de formato da plataforma para o vocabulário interno. Poucas linhas por plataforma (3 no TikTok hoje) em vez de N classificações por ad. |
-| **Arquivo alvo** | `src/bridge/platform-format-mapping.entity.ts` |
+| **Arquivo** | `src/bridge/ad-classification/platform-format-mapping.entity.ts` |
 | **Status** | Implementada |
 
 **Campos**
@@ -704,19 +713,19 @@ afetado.
 | | |
 |---|---|
 | **Papel de negócio** | Congela um snapshot do enriquecimento para o DAG consumir. Configurar não dispara processamento; publicar sim, uma vez para o lote inteiro. |
-| **Arquivo alvo** | `src/bridge/enrichment-publication.entity.ts` |
-| **Status** | **Alvo** — ainda não existe no código |
+| **Arquivo** | `src/enrichment/publication/enrichment-publication.entity.ts` |
 
 **Campos**
 
 | Campo | Significado |
 |---|---|
-| `publishedAt` / `publishedBy` | Quando e por quem |
+| `publishedAt` / `publishedById` | Quando e por quem (coluna `published_by_id`). O autor é nulo só em publicação que não veio de uma pessoa |
 | `status` | `pending` \| `materialized` \| `superseded` |
 
 O DAG usa a publicação mais recente e o snapshot congelado, nunca as tabelas vivas — isso torna
 a rodada reprodutível e dá o rastro de auditoria que o SCD tipo 1 não guarda. Publicar de novo
-antes de a anterior ser usada marca a anterior como `superseded`.
+marca como `superseded` a publicação pendente que nenhuma rodada usou; a que já tem rodada é
+história e sobrevive.
 
 Falha **não** é status de publicação: o gold enriquecido é reconstruído a cada rodada diária,
 então uma publicação é usada em muitas rodadas e o resultado de cada uma vive em
@@ -729,21 +738,47 @@ então uma publicação é usada em muitas rodadas e o resultado de cada uma viv
 | | |
 |---|---|
 | **Papel de negócio** | Registra cada execução do enriquecimento pelo DAG: quando rodou, com qual publicação, e se deu certo. É o que sustenta o aviso "a última rodada falhou" na tela. |
-| **Arquivo alvo** | `src/bridge/enrichment-run.entity.ts` |
-| **Status** | **Alvo** — ainda não existe no código |
+| **Arquivo** | `src/enrichment/run/enrichment-run.entity.ts` |
 
 **Campos**
 
 | Campo | Significado |
 |---|---|
-| `publicationId` | Qual configuração a rodada usou |
+| `publicationId` | Qual configuração a rodada usou. **Nulo** quando não havia publicação alguma — a rodada usou configuração vazia |
 | `startedAt` / `finishedAt` | Janela da execução |
-| `status` | `success` \| `failed` |
+| `status` | `running` \| `success` \| `failed` |
 | `errorMessage` | Diagnóstico quando falha |
 
 Contar falhas consecutivas é um `SELECT` aqui. Não há limite de tentativas: reconstruir é o
 trabalho normal do dia, e travar congelaria o gold também em relação ao fato novo. A cobertura
 do enriquecimento também é métrica de rodada, e é aqui que ela cabe.
+
+---
+
+### EnrichmentSnapshotCampaign
+
+| | |
+|---|---|
+| **Papel de negócio** | A configuração de nível campanha congelada sob uma publicação. É o que o DAG lê para enriquecer o gold. |
+| **Arquivo** | `src/enrichment/publication/enrichment-snapshot-campaign.entity.ts` |
+
+**Campos**
+
+| Campo | Significado |
+|---|---|
+| `publicationId` | A publicação que congelou esta linha |
+| `platformKey` / `externalCampaignId` | A coordenada do objeto no lake — a chave do join |
+| `clientName`, `campaignName`, `channelName`, `buyingTypeName` | Os valores **resolvidos** |
+
+Guarda valor, nunca id: com `campaign_id`, renomear a campanha amanhã mudaria o resultado de uma
+publicação supostamente congelada.
+
+`UNIQUE (publicationId, platformKey, externalCampaignId)` é a unicidade do binding congelada aqui
+dentro — como o join casa pelo id do objeto sem a conta, dois candidatos para a mesma coordenada
+duplicariam a linha do fato.
+
+Os níveis de ad_group e de ad ganham tabela de snapshot própria quando os `LEFT JOIN` que as
+consomem forem escritos.
 
 ---
 
@@ -781,6 +816,9 @@ novo sobre ela, e não a remova fora do plano da iniciativa ativa.
 | Grouping | PlatformAdGroupGrouping | OneToMany | FK composta `(campaign_id, grouping_id)` | Grouping row | Regra 5 — eixo é da campanha do binding |
 | PlatformAccount | PlatformAdClassification | OneToMany | `platform_ad_classification.platform_account_id` | Classification | Exceção de formato |
 | Platform | PlatformFormatMapping | OneToMany | `platform_format_mapping.platform_id` | Mapping | Tradução por plataforma |
+| User | EnrichmentPublication | ManyToOne | `enrichment_publication.published_by_id` (`ON DELETE SET NULL`) | Publication | Quem publicou; nulo se não veio de uma pessoa |
+| EnrichmentPublication | EnrichmentRun | OneToMany | `enrichment_run.publication_id` (nulo permitido) | Run | Uma publicação é usada em muitas rodadas |
+| EnrichmentPublication | EnrichmentSnapshotCampaign | OneToMany | `enrichment_snapshot_campaign.publication_id` (`ON DELETE CASCADE`) | Snapshot | Snapshot não existe fora da publicação |
 
 **Junção `user_company`** — entidade explícita com `id`, `isActive` e timestamps.
 `UNIQUE (user_id, company_id)`; `status=false` é revogação suave sem exigir novo login.

@@ -7,7 +7,7 @@ export function buildSwaggerConfig() {
     .setDescription(
       'Metadata and mappings for the marketing data lake. ' +
         'Layers: Access (permissions) → Business (Client/Campaign) → ' +
-        'Media (catalog) → Bridge (platform ID matching).',
+        'Media (catalog) → Bridge (platform ID matching) → Enrichment (publication).',
     )
     .setVersion('1.0')
     .build();
@@ -47,7 +47,15 @@ export function applySwaggerTagGroups(document: OpenAPIObject): OpenAPIObject {
       tags: [
         layerTag(Layer.Bridge, 'Catalog'),
         layerTag(Layer.Bridge, 'PlatformAccount'),
+        layerTag(Layer.Bridge, 'CampaignBinding'),
         layerTag(Layer.Bridge, 'PlatformObjectMap'),
+      ],
+    },
+    {
+      name: 'Enrichment — publishing configuration to the lake',
+      tags: [
+        layerTag(Layer.Enrichment, 'Publication'),
+        layerTag(Layer.Enrichment, 'Dag'),
       ],
     },
     {

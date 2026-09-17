@@ -3,6 +3,7 @@ export const Layer = {
   Business: 'Business',
   Media: 'Media',
   Bridge: 'Bridge',
+  Enrichment: 'Enrichment',
   System: 'System',
 } as const;
 

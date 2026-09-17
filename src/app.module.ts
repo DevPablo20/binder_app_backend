@@ -5,6 +5,7 @@ import { AccessModule } from './access/access.module';
 import { BusinessModule } from './business/business.module';
 import { MediaModule } from './media/media.module';
 import { BridgeModule } from './bridge/bridge.module';
+import { EnrichmentModule } from './enrichment/enrichment.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { BridgeModule } from './bridge/bridge.module';
     BusinessModule,
     MediaModule,
     BridgeModule,
+    EnrichmentModule,
   ],
   controllers: [],
   providers: [],
